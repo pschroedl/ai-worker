@@ -404,6 +404,87 @@
                     }
                 ]
             }
+        },
+        "/text-to-audio": {
+            "post": {
+                "summary": "Texttoaudio",
+                "operationId": "TextToAudio",
+                "requestBody": {
+                    "content": {
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/Body_TextToAudio_text_to_audio_post"
+                                    }
+                                ],
+                                "title": "Body"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            },
+                            "audio/mp4": {}
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "detail": {
+                                            "type": "string",
+                                            "title": "Detail"
+                                        }
+                                    },
+                                    "type": "object",
+                                    "required": [
+                                        "detail"
+                                    ],
+                                    "title": "HTTPError"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "detail": {
+                                            "type": "string",
+                                            "title": "Detail"
+                                        }
+                                    },
+                                    "type": "object",
+                                    "required": [
+                                        "detail"
+                                    ],
+                                    "title": "HTTPError"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -421,24 +502,22 @@
                 ],
                 "title": "APIError"
             },
-            "Body_audio_to_text_audio_to_text_post": {
+            "Body_TextToAudio_text_to_audio_post": {
                 "properties": {
-                    "audio": {
-                        "type": "string",
-                        "format": "binary",
-                        "title": "Audio"
-                    },
-                    "model_id": {
-                        "type": "string",
-                        "title": "Model Id",
-                        "default": ""
+                    "text_input": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Text Input"
                     }
                 },
                 "type": "object",
-                "required": [
-                    "audio"
-                ],
-                "title": "Body_audio_to_text_audio_to_text_post"
+                "title": "Body_TextToAudio_text_to_audio_post"
             },
             "Body_image_to_image_image_to_image_post": {
                 "properties": {
