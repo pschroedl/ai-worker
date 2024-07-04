@@ -197,11 +197,6 @@ func NewUpscaleMultipartWriter(w io.Writer, req GenUpscaleMultipartRequestBody) 
 			return nil, err
 		}
 	}
-	if req.Seed != nil {
-		if err := mw.WriteField("seed", strconv.Itoa(*req.Seed)); err != nil {
-			return nil, err
-		}
-	}
 	if req.NumInferenceSteps != nil {
 		if err := mw.WriteField("num_inference_steps", strconv.Itoa(*req.NumInferenceSteps)); err != nil {
 			return nil, err

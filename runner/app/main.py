@@ -54,6 +54,9 @@ def load_pipeline(pipeline: str, model_id: str) -> any:
             from app.pipelines.segment_anything_2 import SegmentAnything2Pipeline
 
             return SegmentAnything2Pipeline(model_id)
+        case "text-to-speech":
+            from app.pipelines.text_to_speech import TextToSpeechPipeline
+            return TextToSpeechPipeline(model_id)
         case _:
             raise EnvironmentError(
                 f"{pipeline} is not a valid pipeline for model {model_id}"
@@ -88,6 +91,10 @@ def load_route(pipeline: str) -> any:
             from app.routes import segment_anything_2
 
             return segment_anything_2.router
+        case "text-to-speech":
+            from app.routes import text_to_speech
+
+            return text_to_speech.router
         case _:
             raise EnvironmentError(f"{pipeline} is not a valid pipeline")
 

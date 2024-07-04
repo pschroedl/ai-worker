@@ -351,6 +351,54 @@ func (w *Worker) SegmentAnything2(ctx context.Context, req GenSegmentAnything2Mu
 	return resp.JSON200, nil
 }
 
+// func (w *Worker) TextToSpeech(ctx context.Context, req GenTextToSpeechJSONRequestBody) (*MasksResponse, error) {
+// 	c, err := w.borrowContainer(ctx, "text-to-speech", *req.ModelId)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer w.returnContainer(c)
+
+// 	var buf bytes.Buffer
+// 	mw, err := NewTextToSpeechMultipartWriter(&buf, req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	resp, err := c.Client.GenTextToSpeechWithBodyWithResponse(ctx, mw.FormDataContentType(), &buf)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	if resp.JSON422 != nil {
+// 		val, err := json.Marshal(resp.JSON422)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		slog.Error("text-to-speech container returned 422", slog.String("err", string(val)))
+// 		return nil, errors.New("text-to-speech container returned 422")
+// 	}
+
+// 	if resp.JSON400 != nil {
+// 		val, err := json.Marshal(resp.JSON400)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		slog.Error("text-to-speech container returned 400", slog.String("err", string(val)))
+// 		return nil, errors.New("text-to-speech container returned 400")
+// 	}
+
+// 	if resp.JSON500 != nil {
+// 		val, err := json.Marshal(resp.JSON500)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		slog.Error("text-to-speech container returned 500", slog.String("err", string(val)))
+// 		return nil, errors.New("text-to-speech container returned 500")
+// 	}
+
+// 	return resp.JSON200, nil
+// }
+
 func (w *Worker) Warm(ctx context.Context, pipeline string, modelID string, endpoint RunnerEndpoint, optimizationFlags OptimizationFlags) error {
 	if endpoint.URL == "" {
 		return w.manager.Warm(ctx, pipeline, modelID, optimizationFlags)

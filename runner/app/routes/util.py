@@ -43,6 +43,18 @@ class MasksResponse(BaseModel):
         ..., description="The raw, unnormalized predictions (logits) for the masks."
     )
 
+class AudioResponse(BaseModel):
+    audio: Media
+
+class chunk(BaseModel):
+    timestamp: tuple
+    text: str
+
+
+class TextResponse(BaseModel):
+    text: str
+    chunks: List[chunk]
+
 
 class chunk(BaseModel):
     """A chunk of text with a timestamp."""
