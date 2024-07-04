@@ -47,6 +47,9 @@ def load_pipeline(pipeline: str, model_id: str) -> any:
         case "upscale":
             from app.pipelines.upscale import UpscalePipeline
             return UpscalePipeline(model_id)
+        case "lipsync":
+            from app.pipelines.lipsync import LipsyncPipeline
+            return LipsyncPipeline(model_id)
         case _:
             raise EnvironmentError(
                 f"{pipeline} is not a valid pipeline for model {model_id}"
@@ -73,6 +76,10 @@ def load_route(pipeline: str) -> any:
             from app.routes import upscale
 
             return upscale.router
+        case "lipsync":
+            from app.routes import lipsync
+
+            return lipsync.router
         case _:
             raise EnvironmentError(f"{pipeline} is not a valid pipeline")
 

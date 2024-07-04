@@ -3,8 +3,6 @@
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu20.04
 LABEL maintainer="Yondon Fu <yondon@livepeer.org>"
 
-# Add any system dependency here
-# RUN apt-get update -y && apt-get install libXXX -y
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -12,7 +10,19 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
   apt-get install -y build-essential libssl-dev zlib1g-dev libbz2-dev \
   libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
-  xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git
+  xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git ca-certificates
+
+# Add any system dependency here
+# RUN apt-get update -y && apt-get install libXXX -y
+# RUN apt-get update && apt-get install -y espeak
+
+# Install Git LFS
+RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
+    apt-get install -y git-lfs && \
+    git lfs install
+
+# Verify the installation
+RUN git lfs version
 
 # Install pyenv
 RUN curl https://pyenv.run | bash
@@ -51,5 +61,8 @@ ENV MODEL_DIR=/models
 COPY app/ /app/app
 COPY images/ /app/images
 COPY bench.py /app/bench.py
+
+# Verify espeak installation by checking its version
+RUN espeak --version
 
 CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]
