@@ -19,6 +19,9 @@ from PIL import Image, ImageFile
 from fastapi import Form
 from fastapi.responses import JSONResponse
 from typing import List, Tuple, Optional
+from io import BytesIO
+import base64
+import tempfile
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 SFAST_WARMUP_ITERATIONS = 2  # Model warm-up iterations when SFAST is enabled.
@@ -40,21 +43,27 @@ class LipsyncPipeline(Pipeline):
         else:
             raise ValueError("Hugging Face token not found. Set HUGGINGFACE_TOKEN environment variable.")
 
-    def __call__(self, text_file, image_file, seed=None):
+    def __call__(self, text, image_file, seed=None):
         # Step 1: Read the text file for transcription
-        transcription = self.read_text_file(text_file)
+        # transcription = self.read_text_file(text_file)
         
         # Step 2: Generate audio from transcription using TTS
-        audio_path = self.generate_speech(transcription)
-
+        audio_path = self.generate_speech(text)
+        # audio_path = "output_speech.wav"
         # Step 3: Generate video frames using Stable Diffusion
         # temp_video_path = self.generate_video(image_file)
-        temp_video_path = self.generate_dummy_video(image_file, "dummy_video.mp4", 25, 7)
+        # dummy_video_path = "dummy_video.mp4"
+        # self.generate_dummy_video(image_file, dummy_video_path, 25, 30)
         
+        temp_image_file_path = save_image_to_temp_file(image_file)
         # Step 4: Generate lip-synced video using Wav2Lip
-        output_video_path = self.generate_HD_lipsync(temp_video_path, audio_path)
-        
-        return output_video_path
+        output_video_path = self.generate_lipsync(temp_image_file_path, audio_path)
+
+        final_output_path = "output/final.mp4"
+        HD_video_path = self.generate_HD_upscale(output_video_path) 
+        self.merge_audio_video(HD_video_path, audio_path, final_output_path)
+
+        return final_output_path
     
     def generate_dummy_video(self, image_path, output_video_path="dummy_video.mp4", num_frames=25, fps=7):
     # Open the image
@@ -68,7 +77,7 @@ class LipsyncPipeline(Pipeline):
         
         print(f"Dummy video created at {output_video_path}")
 
-    def generate_HD_lipsync(self, video_path, audio_path, output_path="output/", temp_frames_path="frames/"):
+    def generate_HD_upscale(self, video_path, output_path="output/", temp_frames_path="frames/"):
         # Split video into frames
         os.makedirs(temp_frames_path, exist_ok=True)
         vidcap = cv2.VideoCapture(video_path)
@@ -83,7 +92,7 @@ class LipsyncPipeline(Pipeline):
             frame_path = os.path.join(temp_frames_path, f"{frameNumber:04d}.jpg")
             cv2.imwrite(frame_path, image)
         
-        # Run the HD lip-sync model on the frames
+        # Run the upscaler on the frames
         wav2lip_hd_repo = "/models/wav2lip-HD/GFPGAN-master/"
         command = [
             "python", os.path.join(wav2lip_hd_repo, "inference_gfpgan.py"),
@@ -114,6 +123,172 @@ class LipsyncPipeline(Pipeline):
         
         print("HD lip-sync video generation complete.")
         return os.path.join(output_path, "output_hd.mp4")
+    
+    def check_file(self, file_path):
+        if os.path.exists(file_path):
+            print(f"File exists: {file_path}")
+            print(f"File size: {os.path.getsize(file_path)} bytes")
+            print(f"File permissions: {oct(os.stat(file_path).st_mode)[-3:]}")
+        else:
+            print(f"File does not exist: {file_path}")
+
+    def generate_lipsync(self, video_path, audio_path, output_path="output/", model="wav2lip"):
+        # Define paths
+        base_path = "/models/wav2lip-HD"
+        wav2lip_folder_name = 'Wav2Lip-master'
+        wav2lip_path = os.path.join(base_path, wav2lip_folder_name)
+        lip_synced_output_path = os.path.join(output_path, "result.mp4")
+        unProcessedFramesFolderPath = os.path.join(output_path, 'frames')
+        temp_dir = "temp"
+        temp_result_path = os.path.join(temp_dir, "result.avi")
+        
+        # Ensure output and temp directories exist
+        os.makedirs(output_path, exist_ok=True)
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Check if paths and files exist
+        self.check_file(video_path)
+        self.check_file(audio_path)
+        self.check_file(os.path.join(wav2lip_path, "inference.py"))
+        self.check_file(os.path.join(wav2lip_path, "checkpoints", f"{model}.pth"))
+        
+        # Run Wav2Lip inference
+        command = [
+            "python", os.path.join(wav2lip_path, "inference.py"),
+            "--checkpoint_path", os.path.join(wav2lip_path, "checkpoints", f"{model}.pth"),
+            "--face", video_path,
+            "--audio", audio_path,
+            "--outfile", lip_synced_output_path
+        ]
+        print(f"Running command: {' '.join(command)}")
+        subprocess.run(command, check=True)
+        
+        # Ensure unprocessed frames directory exists
+        os.makedirs(unProcessedFramesFolderPath, exist_ok=True)
+        
+        # Check if the output video was created
+        self.check_file(lip_synced_output_path)
+        
+        # Check if the temp result file was created
+        self.check_file(temp_result_path)
+        
+        # Extract frames from the generated lip-synced video
+        vidcap = cv2.VideoCapture(lip_synced_output_path)
+        if not vidcap.isOpened():
+            raise FileNotFoundError(f"Cannot open video file: {lip_synced_output_path}")
+        
+        numberOfFrames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = vidcap.get(cv2.CAP_PROP_FPS)
+        print("FPS: ", fps, "Frames: ", numberOfFrames)
+
+        for frameNumber in tqdm(range(numberOfFrames)):
+            success, image = vidcap.read()
+            if not success:
+                break
+            cv2.imwrite(os.path.join(unProcessedFramesFolderPath, f"{frameNumber:04d}.jpg"), image)
+        
+        # Combine frames back into a video
+        dir_list = sorted(os.listdir(unProcessedFramesFolderPath))
+        img_array = []
+        size = None
+        for filename in dir_list:
+            img = cv2.imread(os.path.join(unProcessedFramesFolderPath, filename))
+            if img is None:
+                continue
+            height, width, layers = img.shape
+            size = (width, height)
+            img_array.append(img)
+        
+        if size is None:
+            raise ValueError("No valid frames found to determine video size.")
+        
+        out = cv2.VideoWriter(os.path.join(output_path, "output.mp4"), cv2.VideoWriter_fourcc(*'DIVX'), fps, size)
+        for img in img_array:
+            out.write(img)
+        out.release()
+        
+        print("Lip-sync video generation complete.")
+        return os.path.join(output_path, "output.mp4")
+
+
+    def generate_lipsync_from_image(self, image_path, audio_path, output_path="output/", model="wav2lip"):
+        # Define paths
+        base_path = "/models/wav2lip-HD"
+        wav2lip_folder_name = 'Wav2Lip-master'
+        wav2lip_path = os.path.join(base_path, wav2lip_folder_name)
+        lip_synced_output_path = os.path.join(output_path, "result.mp4")
+        unProcessedFramesFolderPath = os.path.join(output_path, 'frames')
+        temp_dir = "temp"
+        temp_result_path = os.path.join(temp_dir, "result.avi")
+        
+        # Ensure output and temp directories exist
+        os.makedirs(output_path, exist_ok=True)
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Check if paths and files exist
+        self.check_file(image_path)
+        self.check_file(audio_path)
+        self.check_file(os.path.join(wav2lip_path, "inference.py"))
+        self.check_file(os.path.join(wav2lip_path, "checkpoints", f"{model}.pth"))
+        
+        # Run Wav2Lip inference
+        command = [
+            "python", os.path.join(wav2lip_path, "inference.py"),
+            "--checkpoint_path", os.path.join(wav2lip_path, "checkpoints", f"{model}.pth"),
+            "--face", image_path,
+            "--audio", audio_path,
+            "--outfile", lip_synced_output_path
+        ]
+        print(f"Running command: {' '.join(command)}")
+        subprocess.run(command, check=True)
+        
+        # Ensure unprocessed frames directory exists
+        os.makedirs(unProcessedFramesFolderPath, exist_ok=True)
+        
+        # Check if the output video was created
+        self.check_file(lip_synced_output_path)
+        
+        # Check if the temp result file was created
+        self.check_file(temp_result_path)
+        
+        # Extract frames from the generated lip-synced video
+        vidcap = cv2.VideoCapture(lip_synced_output_path)
+        if not vidcap.isOpened():
+            raise FileNotFoundError(f"Cannot open video file: {lip_synced_output_path}")
+        
+        numberOfFrames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = vidcap.get(cv2.CAP_PROP_FPS)
+        print("FPS: ", fps, "Frames: ", numberOfFrames)
+
+        for frameNumber in tqdm(range(numberOfFrames)):
+            success, image = vidcap.read()
+            if not success:
+                break
+            cv2.imwrite(os.path.join(unProcessedFramesFolderPath, f"{frameNumber:04d}.jpg"), image)
+        
+        # Combine frames back into a video
+        dir_list = sorted(os.listdir(unProcessedFramesFolderPath))
+        img_array = []
+        size = None
+        for filename in dir_list:
+            img = cv2.imread(os.path.join(unProcessedFramesFolderPath, filename))
+            if img is None:
+                continue
+            height, width, layers = img.shape
+            size = (width, height)
+            img_array.append(img)
+        
+        if size is None:
+            raise ValueError("No valid frames found to determine video size.")
+        
+        out = cv2.VideoWriter(os.path.join(output_path, "output.mp4"), cv2.VideoWriter_fourcc(*'DIVX'), fps, size)
+        for img in img_array:
+            out.write(img)
+        out.release()
+        
+        print("Lip-sync video generation complete.")
+        return os.path.join(output_path, "output.mp4")
+
 
     def read_text_file(self, text_file):
         text_file.seek(0)
@@ -282,13 +457,49 @@ class LipsyncPipeline(Pipeline):
 
         return ldm
 
-def image_to_data_url(image):
-    from io import BytesIO
-    import base64
+    def merge_audio_video(self, video_path, audio_path, output_path):
+        # Check if input files exist
+        self.check_file(video_path)
+        self.check_file(audio_path)
 
+        # Ensure the output directory exists
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+    
+        # Construct the ffmpeg command
+        command = [
+            'ffmpeg',
+            '-y',  # Overwrite output file if it exists
+            '-i', video_path,
+            '-i', audio_path,
+            '-c:v', 'copy',  # Copy the video codec
+            '-c:a', 'aac',   # Use AAC for audio
+            '-strict', 'experimental',
+            output_path
+        ]
+    
+        # Run the ffmpeg command
+        try:
+            subprocess.run(command, check=True, capture_output=True, text=True)
+            print(f"Successfully merged audio and video to: {output_path}")
+        except subprocess.CalledProcessError as e:
+            print(f"Error merging audio and video: {e}")
+            print(f"ffmpeg stdout: {e.stdout}")
+            print(f"ffmpeg stderr: {e.stderr}")
+
+def image_to_data_url(image_file):
+    # Convert SpooledTemporaryFile to PIL Image
+    image = Image.open(image_file)
+    
     buffer = BytesIO()
     image.save(buffer, format="JPEG")
     img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return f"data:image/jpeg;base64,{img_str}"
 
-
+def save_image_to_temp_file(image_file):
+    image = Image.open(image_file)
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+    image.save(temp_file, format="JPEG")
+    temp_file.close()
+    return temp_file.name

@@ -21,7 +21,7 @@ transformers
 soundfile
 g2p-en
 opencv-python
-librosa==0.10.0
+librosa==0.8.1
 opencv-contrib-python>=4.2.0.34
 opencv-python==4.7.0.72
 torch>=1.7

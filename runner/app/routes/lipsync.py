@@ -5,12 +5,16 @@ from app.pipelines.base import Pipeline
 from app.dependencies import get_pipeline
 import logging
 import random
+import json
 
 class HTTPError(BaseModel):
     detail: str
 
 class VideoResponse(BaseModel):
     video_url: str
+
+class TextInput(BaseModel):
+    text: str
 
 router = APIRouter()
 
@@ -20,7 +24,7 @@ responses = {400: {"model": HTTPError}, 500: {"model": HTTPError}}
 
 @router.post("/lipsync", response_model=VideoResponse, responses=responses)
 async def lipsync(
-    text: UploadFile = File(...),
+    text_input: str = Form(...),
     image: UploadFile = File(...),
     model_id: str = Form(""),
     seed: int = Form(None),
@@ -31,6 +35,16 @@ async def lipsync(
     noise_aug_strength: float = Form(0.02),
     pipeline: Pipeline = Depends(get_pipeline),
 ):
+    try:
+        text_input_data = json.loads(text_input)
+        text = text_input_data['text']
+    except json.JSONDecodeError:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Invalid JSON for text_input"}
+        )
+
+
     if model_id != "" and model_id != pipeline.model_id:
         return JSONResponse(
             status_code=400,
@@ -44,7 +58,7 @@ async def lipsync(
 
     try:
         output_video_path = pipeline(
-            text.file,
+            text,
             image.file,
             seed=seed,
         )
