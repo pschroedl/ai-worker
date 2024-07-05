@@ -19,3 +19,5 @@ numpy==1.26.4
 phonemizer
 torch
 transformers
+soundfile
+g2p-en

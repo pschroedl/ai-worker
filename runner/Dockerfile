@@ -13,8 +13,6 @@ RUN apt-get update && \
   xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git ca-certificates
 
 # Add any system dependency here
-# RUN apt-get update -y && apt-get install libXXX -y
-# RUN apt-get update && apt-get install -y espeak
 
 # Install Git LFS
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
@@ -61,8 +59,5 @@ ENV MODEL_DIR=/models
 COPY app/ /app/app
 COPY images/ /app/images
 COPY bench.py /app/bench.py
-
-# Verify espeak installation by checking its version
-RUN espeak --version
 
 CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]
