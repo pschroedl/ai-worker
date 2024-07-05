@@ -13,6 +13,8 @@ import os
 import logging
 import time
 import gc
+import cv2
+from tqdm import tqdm
 from PIL import Image, ImageFile
 from fastapi import Form
 from fastapi.responses import JSONResponse
@@ -44,17 +46,74 @@ class LipsyncPipeline(Pipeline):
         
         # Step 2: Generate audio from transcription using TTS
         audio_path = self.generate_speech(transcription)
+
+        # Step 3: Generate video frames using Stable Diffusion
+        # temp_video_path = self.generate_video(image_file)
+        temp_video_path = self.generate_dummy_video(image_file, "dummy_video.mp4", 25, 7)
         
-        # Step 3: Convert transcription to phonemes using Phonemizer
-        # phonemes = self.convert_to_phonemes(transcription)
-        
-        # Step 4: Generate video frames using Stable Diffusion
-        temp_video_path = self.generate_video(image_file)
-        
-        # Step 6: Generate lip-synced video using Wav2Lip
-        output_video_path = self.generate_lip_sync_video(temp_video_path, audio_path)
+        # Step 4: Generate lip-synced video using Wav2Lip
+        output_video_path = self.generate_HD_lipsync(temp_video_path, audio_path)
         
         return output_video_path
+    
+    def generate_dummy_video(self, image_path, output_video_path="dummy_video.mp4", num_frames=25, fps=7):
+    # Open the image
+        image = Image.open(image_path)
+        
+        # Create the same frame multiple times
+        video_frames = [image] * num_frames
+        
+        # Export the frames to a video
+        export_to_video(video_frames, output_video_path, fps=fps)
+        
+        print(f"Dummy video created at {output_video_path}")
+
+    def generate_HD_lipsync(self, video_path, audio_path, output_path="output/", temp_frames_path="frames/"):
+        # Split video into frames
+        os.makedirs(temp_frames_path, exist_ok=True)
+        vidcap = cv2.VideoCapture(video_path)
+        numberOfFrames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = vidcap.get(cv2.CAP_PROP_FPS)
+        print(f"FPS: {fps}, Frames: {numberOfFrames}")
+
+        for frameNumber in tqdm(range(numberOfFrames)):
+            success, image = vidcap.read()
+            if not success:
+                break
+            frame_path = os.path.join(temp_frames_path, f"{frameNumber:04d}.jpg")
+            cv2.imwrite(frame_path, image)
+        
+        # Run the HD lip-sync model on the frames
+        wav2lip_hd_repo = "/models/wav2lip-HD/GFPGAN-master/"
+        command = [
+            "python", os.path.join(wav2lip_hd_repo, "inference_gfpgan.py"),
+            "-i", temp_frames_path,
+            "-o", output_path,
+            "-v", "1.3",
+            "-s", "2",
+            "--only_center_face",
+            "--bg_upsampler", "None"
+        ]
+        subprocess.run(command, check=True)
+
+        # Combine frames back into a video
+        restored_frames_path = os.path.join(output_path, "restored_imgs")
+        dir_list = sorted(os.listdir(restored_frames_path))
+        
+        img_array = []
+        for filename in dir_list:
+            img = cv2.imread(os.path.join(restored_frames_path, filename))
+            height, width, layers = img.shape
+            size = (width, height)
+            img_array.append(img)
+        
+        out = cv2.VideoWriter(os.path.join(output_path, "output_hd.mp4"), cv2.VideoWriter_fourcc(*'DIVX'), fps, size)
+        for img in img_array:
+            out.write(img)
+        out.release()
+        
+        print("HD lip-sync video generation complete.")
+        return os.path.join(output_path, "output_hd.mp4")
 
     def read_text_file(self, text_file):
         text_file.seek(0)
@@ -89,20 +148,6 @@ class LipsyncPipeline(Pipeline):
         sf.write(audio_path, waveform.squeeze().detach().cpu().numpy(), samplerate=22050)
         return audio_path
 
-
-    # def convert_to_phonemes(self, text):
-    #     phonemes = phonemize(
-    #         text=text,
-    #         language='en-us',
-    #         backend='espeak',
-    #         separator=Separator(phone=' ', word='|'),
-    #         strip=True,
-    #         preserve_punctuation=True,
-    #         with_stress=True,
-    #         njobs=4
-    #     )
-    #     return phonemes
-
     def generate_video(self, image_file):
         # Load Stable Diffusion model for image-to-video generation
         # self.stable_video_model_id = "stabilityai/stable-video-diffusion-img2vid-xt-1-1"
@@ -111,16 +156,21 @@ class LipsyncPipeline(Pipeline):
         # ).to(self.device)
     
         self.stable_video_pipeline = self.load_stable_diffusion_model()
-        # self.stable_video_pipeline.en_and_decode_n_samples_a_time = (
-        #             8  # Decode n frames at a time
-        #         )
+        self.stable_video_pipeline.en_and_decode_n_samples_a_time = (
+                    8  # Decode n frames at a time
+                )
         global lowvram_mode
         lowvram_mode = True
 
         image = Image.open(image_file)
         image = [image.resize((1024, 576))]
         image *= 2
-        video_frames = self.stable_video_pipeline(image=image,num_frames=25, decode_chunk_size=8).frames[0]
+
+        # Reduce batch size and number of frames
+        num_frames = 10  # Reduce the number of frames to fit within GPU memory
+        decode_chunk_size = 4  # Reduce decode chunk size
+        
+        video_frames = self.stable_video_pipeline(image=image, num_frames=num_frames, decode_chunk_size=decode_chunk_size).frames[0]
         
         # Unload the Stable Diffusion model from the GPU
         print("Unloading Stable Diffusion model")
@@ -128,37 +178,6 @@ class LipsyncPipeline(Pipeline):
         video_path = "generated_video.mp4"
         export_to_video(video_frames, video_path, fps=7)
         return video_path
-
-    def save_frames_to_video(
-        self,
-        batch_frames,
-        height: int = 576,
-        width: int = 1024,
-        fps: int = 6,
-        motion_bucket_id: int = 127,
-        noise_aug_strength: float = 0.02,
-        safety_check: bool = True,
-        seed: Optional[int] = None
-    ):
-        temp_video_path = "temp_video.mp4"
-        command = [
-            "ffmpeg",
-            "-y",
-            "-f", "image2pipe",
-            "-vcodec", "mjpeg",
-            "-i", "-",
-            "-vcodec", "libx264",
-            "-pix_fmt", "yuv420p",
-            "-r", str(fps),
-            "-s", f"{width}x{height}",
-            temp_video_path
-        ]
-        process = subprocess.Popen(command, stdin=subprocess.PIPE)
-        for frame in batch_frames:
-            frame.save(process.stdin, format="JPEG")
-        process.stdin.close()
-        process.wait()
-        return temp_video_path
 
     def generate_lip_sync_video(self, video_path, audio_path):
         # Load Wav2Lip model and inference script

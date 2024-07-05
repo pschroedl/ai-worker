@@ -10,7 +10,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
   apt-get install -y build-essential libssl-dev zlib1g-dev libbz2-dev \
   libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
-  xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git ca-certificates
+  xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git ca-certificates \
+  ffmpeg libsm6 libxext6 
+
 
 # Add any system dependency here
 
@@ -59,5 +61,10 @@ ENV MODEL_DIR=/models
 COPY app/ /app/app
 COPY images/ /app/images
 COPY bench.py /app/bench.py
+
+RUN git clone https://huggingface.co/camenduru/Wav2Lip /models/camenduru-wav2lip/
+
+  # Clone the wav2lip-HD repository
+RUN git clone https://github.com/indianajson/wav2lip-HD.git /models/wav2lip-HD
 
 CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]
