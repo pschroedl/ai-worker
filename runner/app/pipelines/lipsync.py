@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class LipsyncPipeline(Pipeline):
     def __init__(self, model_id: str):
-        self.model_id = model_id
+        self.model_id = model_id # not conforming to this pattern at the moment
         self.device = get_torch_device()
         
         # Authenticate with Hugging Face
@@ -129,6 +129,7 @@ class LipsyncPipeline(Pipeline):
             "python", os.path.join(real3dportrait_path, "inference/real3d_infer.py"),
             "--src_img", image_path,
             "--drv_aud", os.path.join("/workspaces/ai-worker/runner", audio_path),
+            "--drv_pose", os.path.join(real3dportrait_path, "data/raw/examples/May_5s.mp4"),
             "--out_name", output_video_path,
             "--out_mode", "final"
         ]

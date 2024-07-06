@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from http.client import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.routing import APIRoute
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import os
 import logging
@@ -99,3 +101,9 @@ def use_route_names_as_operation_ids(app: FastAPI) -> None:
 
 
 app = FastAPI(lifespan=lifespan)
+
+@app.get("/video/{video_path:path}")
+async def get_video(video_path: str):
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="Video not found")
+    return FileResponse(video_path, media_type='video/mp4')
