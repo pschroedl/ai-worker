@@ -77,5 +77,5 @@ RUN apt-get install -y cuda-toolkit-12-1
 # Ensure C++17 support for PyTorch
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 \
     && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 60
-RUN /app/
+
 CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]
