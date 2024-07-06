@@ -3,18 +3,17 @@
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu20.04
 LABEL maintainer="Yondon Fu <yondon@livepeer.org>"
 
+# Add any system dependency here
+# RUN apt-get update -y && apt-get install libXXX -y
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install prerequisites
 RUN apt-get update && \
-  apt-get install -y build-essential libssl-dev zlib1g-dev libbz2-dev \
-  libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
-  xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git ca-certificates \
-  ffmpeg libsm6 libxext6 
-
-
-# Add any system dependency here
+    apt-get install -y build-essential libssl-dev zlib1g-dev libbz2-dev \
+    libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
+    xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git ca-certificates \
+    ffmpeg libsm6 libxext6
 
 # Install Git LFS
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
@@ -28,22 +27,25 @@ RUN git lfs version
 RUN curl https://pyenv.run | bash
 
 # Set environment variables for pyenv
-ENV PYENV_ROOT /root/.pyenv
-ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
+ENV PYENV_ROOT=/root/.pyenv
+ENV PATH=$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
 
 # Install your desired Python version
 ARG PYTHON_VERSION=3.11
 RUN pyenv install $PYTHON_VERSION && \
-  pyenv global $PYTHON_VERSION && \
-  pyenv rehash
+    pyenv global $PYTHON_VERSION && \
+    pyenv rehash
 
-# Upgrade pip and install your desired packages
+# Upgrade pip and install desired packages
 ARG PIP_VERSION=23.3.2
 RUN pip install --no-cache-dir --upgrade pip==${PIP_VERSION} setuptools==69.5.1 wheel==0.43.0 && \
-  pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
+    pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
 RUN pip install facexlib
 
+# Set working directory
 WORKDIR /app
+
+# Copy and install Python requirements
 COPY ./requirements.txt /app
 RUN pip install pyyaml
 RUN pip install --no-cache-dir -r requirements.txt
@@ -56,26 +58,32 @@ RUN pip install https://github.com/chengzeyi/stable-fast/releases/download/v1.0.
 # Feel free to override if it does not make sense for your library.
 ARG max_workers=1
 ENV MAX_WORKERS=$max_workers
+# Set environment variables for caching and model directories
+ENV MAX_WORKERS=1
 ENV HUGGINGFACE_HUB_CACHE=/models
 ENV DIFFUSERS_CACHE=/models
 ENV MODEL_DIR=/models
 
+# Copy application files
 COPY app/ /app/app
 COPY images/ /app/images
 COPY bench.py /app/bench.py
 
-RUN git clone https://huggingface.co/camenduru/Wav2Lip /models/camenduru-wav2lip/
-
-  # Clone the wav2lip-HD repository
+# Clone repository for wav2Lip
 RUN git clone https://github.com/indianajson/wav2lip-HD.git /models/wav2lip-HD
+
+# Ensure C++17 support for PyTorch
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 60
+
+# Install additional dependencies
 RUN pip install 'git+https://github.com/facebookresearch/pytorch3d.git@stable'
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3-dev \
     ninja-build
 RUN apt-get install -y cuda-toolkit-12-1
-# Ensure C++17 support for PyTorch
-RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 \
-    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 60
 
+
+# Set the command to run the application
 CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]

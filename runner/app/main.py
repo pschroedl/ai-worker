@@ -102,6 +102,7 @@ def use_route_names_as_operation_ids(app: FastAPI) -> None:
 
 app = FastAPI(lifespan=lifespan)
 
+# TODO (pschroedl): Remove me - for debugging use only
 @app.get("/video/{video_path:path}")
 async def get_video(video_path: str):
     if not os.path.exists(video_path):
