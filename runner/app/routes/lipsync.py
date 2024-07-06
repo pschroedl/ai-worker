@@ -35,15 +35,6 @@ async def lipsync(
     noise_aug_strength: float = Form(0.02),
     pipeline: Pipeline = Depends(get_pipeline),
 ):
-    try:
-        text_input_data = json.loads(text_input)
-        text = text_input_data['text']
-    except json.JSONDecodeError:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "Invalid JSON for text_input"}
-        )
-
 
     if model_id != "" and model_id != pipeline.model_id:
         return JSONResponse(
@@ -58,7 +49,7 @@ async def lipsync(
 
     try:
         output_video_path = pipeline(
-            text,
+            text_input,
             image.file,
             seed=seed,
         )

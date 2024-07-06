@@ -40,10 +40,12 @@ RUN pyenv install $PYTHON_VERSION && \
 # Upgrade pip and install your desired packages
 ARG PIP_VERSION=23.3.2
 RUN pip install --no-cache-dir --upgrade pip==${PIP_VERSION} setuptools==69.5.1 wheel==0.43.0 && \
-  pip install --no-cache-dir torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1
+  pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
+RUN pip install facexlib
 
 WORKDIR /app
 COPY ./requirements.txt /app
+RUN pip install pyyaml
 RUN pip install --no-cache-dir -r requirements.txt
 
 RUN pip install https://github.com/chengzeyi/stable-fast/releases/download/v1.0.3/stable_fast-1.0.3+torch211cu121-cp311-cp311-manylinux2014_x86_64.whl
@@ -66,5 +68,14 @@ RUN git clone https://huggingface.co/camenduru/Wav2Lip /models/camenduru-wav2lip
 
   # Clone the wav2lip-HD repository
 RUN git clone https://github.com/indianajson/wav2lip-HD.git /models/wav2lip-HD
-
+RUN pip install 'git+https://github.com/facebookresearch/pytorch3d.git@stable'
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3-dev \
+    ninja-build
+RUN apt-get install -y cuda-toolkit-12-1
+# Ensure C++17 support for PyTorch
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 \
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 60
+RUN /app/
 CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]

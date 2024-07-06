@@ -48,8 +48,8 @@ class LipsyncPipeline(Pipeline):
         # transcription = self.read_text_file(text_file)
         
         # Step 2: Generate audio from transcription using TTS
-        audio_path = self.generate_speech(text)
-        # audio_path = "output_speech.wav"
+        # audio_path = self.generate_speech(text)
+        audio_path = "output_speech.wav"
         # Step 3: Generate video frames using Stable Diffusion
         # temp_video_path = self.generate_video(image_file)
         # dummy_video_path = "dummy_video.mp4"
@@ -57,10 +57,11 @@ class LipsyncPipeline(Pipeline):
         
         temp_image_file_path = save_image_to_temp_file(image_file)
         # Step 4: Generate lip-synced video using Wav2Lip
-        output_video_path = self.generate_lipsync(temp_image_file_path, audio_path)
+        # output_video_path = self.generate_lipsync(temp_image_file_path, audio_path)
+        output_video_path = self.generate_real3d_lipsync(temp_image_file_path, audio_path)
 
-        final_output_path = "output/final.mp4"
-        HD_video_path = self.generate_HD_upscale(output_video_path) 
+        # final_output_path = "output/final.mp4"
+        # HD_video_path = self.generate_HD_upscale(output_video_path) 
         self.merge_audio_video(HD_video_path, audio_path, final_output_path)
 
         return final_output_path
@@ -99,9 +100,11 @@ class LipsyncPipeline(Pipeline):
             "-i", temp_frames_path,
             "-o", output_path,
             "-v", "1.3",
-            "-s", "2",
+            "-s", "1",
             "--only_center_face",
-            "--bg_upsampler", "None"
+            "--bg_upsampler", "None",
+            "--bg_tile", "0",
+            "--upscale", "1"
         ]
         subprocess.run(command, check=True)
 
@@ -124,6 +127,46 @@ class LipsyncPipeline(Pipeline):
         print("HD lip-sync video generation complete.")
         return os.path.join(output_path, "output_hd.mp4")
     
+
+
+    def generate_geneface_lipsync(self, video_path, audio_path, output_path="output/", model="geneface++"):
+        # Define paths for GeneFace++
+        geneface_path = "/models/GeneFacePlusPlus"
+        a2m_ckpt = os.path.join(geneface_path, "checkpoints/audio2motion_vae")
+        head_ckpt = os.path.join(geneface_path, "checkpoints/motion2video_nerf/may_head")
+        torso_ckpt = os.path.join(geneface_path, "checkpoints/motion2video_nerf/may_torso")
+        lip_synced_output_path = os.path.join(output_path, "result.mp4")
+        
+        # Ensure output directory exists
+        os.makedirs(output_path, exist_ok=True)
+            
+        # Construct PYTHONPATH
+        pythonpath = f"{geneface_path}:{os.environ.get('PYTHONPATH', '')}"
+
+        # Run GeneFace++ inference
+        command = [
+        "python", os.path.join(geneface_path, "inference/genefacepp_infer.py"),
+        "--a2m_ckpt", a2m_ckpt,
+        "--head_ckpt", head_ckpt,
+        "--torso_ckpt", torso_ckpt,
+        "--drv_aud", audio_path,
+        "--out_name", lip_synced_output_path
+        ]
+
+        # Prepend the PYTHONPATH to the command
+        full_command = f"PYTHONPATH={pythonpath} " + " ".join(command)
+
+        print(f"Running command: {full_command}")
+        subprocess.run(full_command, shell=True, check=True)
+        
+        # Check if the output video was created
+        if not os.path.exists(lip_synced_output_path):
+            raise FileNotFoundError(f"Cannot find the output video file: {lip_synced_output_path}")
+        
+        print("Lip-sync video generation complete.")
+        return lip_synced_output_path
+
+
     def check_file(self, file_path):
         if os.path.exists(file_path):
             print(f"File exists: {file_path}")
@@ -131,6 +174,57 @@ class LipsyncPipeline(Pipeline):
             print(f"File permissions: {oct(os.stat(file_path).st_mode)[-3:]}")
         else:
             print(f"File does not exist: {file_path}")
+
+
+
+    def generate_real3d_lipsync(self, src_img, drv_aud, drv_pose=None, bg_img=None, output_path="/workspaces/ai-worker/runner/output/", out_name="output.mp4", out_mode="concat_debug", low_memory_usage=False):
+        # Construct PYTHONPATH
+        wav16k_name = drv_aud[:-4] + '_16k.wav'
+        real3dportrait_path = "/models/Real3DPortrait"
+        pythonpath = f"{real3dportrait_path}:{os.environ.get('PYTHONPATH', '')}"
+        extract_wav_cmd = f"ffmpeg -i {drv_aud} -f wav -ar 16000 -v quiet -y {wav16k_name} -y"
+        subprocess.run(extract_wav_cmd, shell=True, check=True)
+        print(f"Extracted wav file (16khz) from {drv_aud} to {wav16k_name}.")
+
+        # Define paths for Real3DPortrait
+        os.environ['PYTHONPATH'] = './'
+        output_video_path = os.path.join(output_path, out_name)
+        # Change to the desired directory
+
+        os.chdir(real3dportrait_path)
+        # Ensure output directory exists
+        os.makedirs(output_path, exist_ok=True)
+        
+
+        # Run Real3DPortrait inference
+        command = [
+            "python", os.path.join(real3dportrait_path, "inference/real3d_infer.py"),
+            "--src_img", src_img,
+            "--drv_aud", os.path.join("/workspaces/ai-worker/runner", wav16k_name),
+            "--out_name", output_video_path,
+            "--out_mode", out_mode
+        ]
+        
+        # if drv_pose:
+        #     command.extend(["--drv_pose", drv_pose])
+        # if bg_img:
+        #     command.extend(["--bg_img", bg_img])
+        # if low_memory_usage:
+        #     command.append("--low_memory_usage")
+
+        # Prepend the PYTHONPATH to the command
+        full_command = f"PYTHONPATH={pythonpath} " + " ".join(command)
+
+        print(f"Running command: {full_command}")
+        subprocess.run(full_command, shell=True, check=True)
+        
+        # Check if the output video was created
+        if not os.path.exists(output_video_path):
+            raise FileNotFoundError(f"Cannot find the output video file: {output_video_path}")
+        
+        print("Lip-sync video generation complete.")
+        os.chdir("/workspaces/ai-worker/runner")
+        return output_video_path
 
     def generate_lipsync(self, video_path, audio_path, output_path="output/", model="wav2lip"):
         # Define paths
