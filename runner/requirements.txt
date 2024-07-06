@@ -28,10 +28,6 @@ facexlib>=0.2.3
 lmdb
 pyyaml
 scipy
-tb-nightly
-yapf
-realesrgan
-ffmpeg
 tensorboard==2.13.0
 tensorboardX==2.6.1
 pyspy==0.1.1
