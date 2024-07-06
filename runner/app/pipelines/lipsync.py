@@ -60,11 +60,7 @@ class LipsyncPipeline(Pipeline):
         # output_video_path = self.generate_lipsync(temp_image_file_path, audio_path)
         output_video_path = self.generate_real3d_lipsync(temp_image_file_path, audio_path)
 
-        # final_output_path = "output/final.mp4"
-        # HD_video_path = self.generate_HD_upscale(output_video_path) 
-        self.merge_audio_video(HD_video_path, audio_path, final_output_path)
-
-        return final_output_path
+        return output_video_path
     
     def generate_dummy_video(self, image_path, output_video_path="dummy_video.mp4", num_frames=25, fps=7):
     # Open the image
@@ -177,7 +173,7 @@ class LipsyncPipeline(Pipeline):
 
 
 
-    def generate_real3d_lipsync(self, src_img, drv_aud, drv_pose=None, bg_img=None, output_path="/workspaces/ai-worker/runner/output/", out_name="output.mp4", out_mode="concat_debug", low_memory_usage=False):
+    def generate_real3d_lipsync(self, src_img, drv_aud, drv_pose=None, bg_img=None, output_path="/workspaces/ai-worker/runner/output/", out_name="output.mp4", out_mode="final", low_memory_usage=False):
         # Construct PYTHONPATH
         wav16k_name = drv_aud[:-4] + '_16k.wav'
         real3dportrait_path = "/models/Real3DPortrait"
