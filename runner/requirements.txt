@@ -35,7 +35,7 @@ ffmpeg
 tensorboard==2.13.0
 tensorboardX==2.6.1
 pyspy==0.1.1
-protobuf==3.20.3
+protobuf==4.22.3
 scipy>=1.9.1
 kornia>=0.5.0
 trimesh>=3.22.0
@@ -58,7 +58,7 @@ praat-parselmouth>=0.4.3
 moviepy>=1.0.3
 mediapipe>=0.10.7
 beartype==0.16.4
-gateloop_transformer==0.4.0
+gateloop_transformer==0.2.5
 torchode>=0.2.0
 torchdiffeq>=0.2.3
 hydra-core>=1.3.2
