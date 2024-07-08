@@ -53,6 +53,10 @@ function download_alpha_models() {
     # Download image-to-video models (token-gated).
     check_hf_auth
     huggingface-cli download stabilityai/stable-video-diffusion-img2vid-xt-1-1 --include "*.fp16.safetensors" "*.bin" "*.json" --cache-dir models ${TOKEN_FLAG:+"$TOKEN_FLAG"}
+
+    # Download Real3DPortrait repo and setup custom python environment
+    
+
 }
 
 # Download all models.

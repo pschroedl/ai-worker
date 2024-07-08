@@ -13,8 +13,8 @@ RUN apt-get update && \
     apt-get install -y build-essential libssl-dev zlib1g-dev libbz2-dev \
     libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
     xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git ca-certificates \
-    ffmpeg libsm6 libxext6
-
+    ffmpeg libsm6 libxext6 python3-dev ninja-build cuda-toolkit-12-1
+    
 # Install Git LFS
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
     apt-get install -y git-lfs && \
@@ -50,6 +50,10 @@ COPY ./requirements.txt /app
 RUN pip install pyyaml
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Ensure C++17 support for PyTorch
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 60
+
 RUN pip install https://github.com/chengzeyi/stable-fast/releases/download/v1.0.3/stable_fast-1.0.3+torch211cu121-cp311-cp311-manylinux2014_x86_64.whl
 
 # Most DL models are quite large in terms of memory, using workers is a HUGE
@@ -68,22 +72,6 @@ ENV MODEL_DIR=/models
 COPY app/ /app/app
 COPY images/ /app/images
 COPY bench.py /app/bench.py
-
-# Clone repository for wav2Lip
-RUN git clone https://github.com/indianajson/wav2lip-HD.git /models/wav2lip-HD
-
-# Ensure C++17 support for PyTorch
-RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 && \
-    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 60
-
-# Install additional dependencies
-RUN pip install 'git+https://github.com/facebookresearch/pytorch3d.git@stable'
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    python3-dev \
-    ninja-build
-RUN apt-get install -y cuda-toolkit-12-1
-
 
 # Set the command to run the application
 CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]
