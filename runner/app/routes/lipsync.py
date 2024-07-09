@@ -18,7 +18,11 @@ router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-responses = {400: {"content": HTTPError}, 500: {"content": HTTPError}, 200: {"content:": {"video/mp4": {}}}}
+responses = {
+    400: {"content": {"application/json": {"schema": HTTPError.schema()}}},
+    500: {"content": {"application/json": {"schema": HTTPError.schema()}}},
+    200: {"content": {"video/mp4": {}}}
+}
 
 @router.post("/lipsync", responses=responses)
 async def lipsync(
