@@ -14,21 +14,13 @@ RUN apt-get update && \
     libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
     xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git ca-certificates \
     ffmpeg libsm6 libxext6 python3-dev ninja-build cuda-toolkit-12-1
-    
-# Install Git LFS
-RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
-    apt-get install -y git-lfs && \
-    git lfs install
-
-# Verify the installation
-RUN git lfs version
 
 # Install pyenv
 RUN curl https://pyenv.run | bash
 
 # Set environment variables for pyenv
-ENV PYENV_ROOT=/root/.pyenv
-ENV PATH=$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
+ENV PYENV_ROOT /root/.pyenv
+ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
 
 # Install your desired Python version
 ARG PYTHON_VERSION=3.11
@@ -36,16 +28,13 @@ RUN pyenv install $PYTHON_VERSION && \
     pyenv global $PYTHON_VERSION && \
     pyenv rehash
 
-# Upgrade pip and install desired packages
+# Upgrade pip and install your desired packages
 ARG PIP_VERSION=23.3.2
 RUN pip install --no-cache-dir --upgrade pip==${PIP_VERSION} setuptools==69.5.1 wheel==0.43.0 && \
-    pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
-RUN pip install facexlib
+    pip install --no-cache-dir torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1
 
-# Set working directory
 WORKDIR /app
 
-# Copy and install Python requirements
 COPY ./requirements.txt /app
 RUN pip install pyyaml
 RUN pip install --no-cache-dir -r requirements.txt
@@ -58,8 +47,7 @@ RUN pip install https://github.com/chengzeyi/stable-fast/releases/download/v1.0.
 # Feel free to override if it does not make sense for your library.
 ARG max_workers=1
 ENV MAX_WORKERS=$max_workers
-# Set environment variables for caching and model directories
-ENV MAX_WORKERS=1
+
 ENV HUGGINGFACE_HUB_CACHE=/models
 ENV DIFFUSERS_CACHE=/models
 ENV MODEL_DIR=/models
@@ -68,7 +56,7 @@ ENV MODEL_DIR=/models
 COPY app/ /app/app
 COPY images/ /app/images
 COPY bench.py /app/bench.py
-COPY run_real3dportrait.sh /app/run_real3dportrait.sh
+COPY cmd/lipsync/run_real3dportrait.sh /app/run_real3dportrait.sh
 
 RUN apt-get install libc6
 
