@@ -1,6 +1,6 @@
 # Based on https://github.com/huggingface/api-inference-community/blob/main/docker_images/diffusers/Dockerfile
 
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu20.04
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 LABEL maintainer="Yondon Fu <yondon@livepeer.org>"
 
 # Add any system dependency here
@@ -50,10 +50,6 @@ COPY ./requirements.txt /app
 RUN pip install pyyaml
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Ensure C++17 support for PyTorch
-RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 && \
-    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 60
-
 RUN pip install https://github.com/chengzeyi/stable-fast/releases/download/v1.0.3/stable_fast-1.0.3+torch211cu121-cp311-cp311-manylinux2014_x86_64.whl
 
 # Most DL models are quite large in terms of memory, using workers is a HUGE
@@ -72,6 +68,9 @@ ENV MODEL_DIR=/models
 COPY app/ /app/app
 COPY images/ /app/images
 COPY bench.py /app/bench.py
+COPY run_real3dportrait.sh /app/run_real3dportrait.sh
+
+RUN apt-get install libc6
 
 # Set the command to run the application
 CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]

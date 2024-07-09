@@ -37,53 +37,37 @@ class LipsyncPipeline(Pipeline):
         self.model_id = model_id
         # Generate Voice
         audio_path = self.generate_speech(text)
-        # audio_path = "output_speech.wav"
+        # audio_path = "/tmp/output_speech.wav"
         # Generate LipSync
         temp_image_file_path = save_image_to_temp_file(image_file)
-        temp_video_path = self.generate_real3d_lipsync(temp_image_file_path, audio_path)
-        # re-merge since enhance pipeline does not include audio
-        self.merge_audio_video(temp_video_path, audio_path)
+        output_path = "/app/output"  # Set the correct output path inside the Docker container
+        self.generate_real3d_lipsync(temp_image_file_path, audio_path, output_path)
 
-        return "output/result.mp4"
+        return output_path
 
-    def generate_real3d_lipsync(self, image_path, audio_path, output_path="/workspaces/ai-worker/runner/output/"):
-        # Construct PYTHONPATH
+    def generate_real3d_lipsync(self, image_path, audio_path, output_path):
+        
         real3dportrait_path = "/models/models--yerfor--Real3DPortrait/"
-        pythonpath = f"{real3dportrait_path}:{os.environ.get('PYTHONPATH', '')}"
+        output_video_path = f"{output_path}/result.mp4"  # Set the correct output video path - TODO: (pschroedl) create unique filenames
 
-        # Define paths for Real3DPortrait
-        os.environ['PYTHONPATH'] = './'
-        output_video_path = os.path.join(output_path, "result.mp4")
-        
-        # Change to the repo directory
         os.chdir(real3dportrait_path)
-        
         # Ensure output directory exists
         os.makedirs(output_path, exist_ok=True)
-        
 
-        # Run Real3DPortrait inference
-        command = [
-            "python", os.path.join(real3dportrait_path, "inference/real3d_infer.py"),
-            "--src_img", image_path,
-            "--drv_aud", os.path.join("/workspaces/ai-worker/runner", audio_path),
-            "--drv_pose", os.path.join(real3dportrait_path, "data/raw/examples/May_5s.mp4"),
-            "--out_name", output_video_path,
-            "--out_mode", "final"
-        ]
+        # Path to the shell script
+        shell_script_path = "/models/models--yerfor--Real3DPortrait/run_real3dportrait.sh"
 
-        # Prepend the PYTHONPATH to the command
-        full_command = f"PYTHONPATH={pythonpath} " + " ".join(command)
+        # Construct the command to run the shell script
+        command = [shell_script_path, image_path, audio_path, os.path.join(output_path, output_video_path)]
 
-        print(f"Running command: {full_command}")
-        subprocess.run(full_command, shell=True, check=True)
+        print(f"Running command: {' '.join(command)}")
+        subprocess.run(command, check=True)
 
         # Check if the output video was created
         if not os.path.exists(output_video_path):
             raise FileNotFoundError(f"Cannot find the output video file: {output_video_path}")
         
         print("Lip-sync video generation complete.")
-        os.chdir("/workspaces/ai-worker/runner")
         return output_video_path
 
     def generate_speech(self, text):
@@ -109,8 +93,8 @@ class LipsyncPipeline(Pipeline):
         print("Unloading TTS HifiGAN")
         self.unload_model(self.TTS_hifigan)
 
-        # Save the audio
-        audio_path = "output_speech.wav"
+        # Save the audio - TODO: (pschroedl) create unique filenamesw
+        audio_path = "/tmp/output_speech.wav"
         sf.write(audio_path, waveform.squeeze().detach().cpu().numpy(), samplerate=22050)
         return audio_path
 
