@@ -1,17 +1,15 @@
 from fastapi import Depends, APIRouter, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from app.pipelines.base import Pipeline
 from app.dependencies import get_pipeline
 import logging
 import random
 import json
+import os
 
 class HTTPError(BaseModel):
     detail: str
-
-class VideoResponse(BaseModel):
-    video_url: str
 
 class TextInput(BaseModel):
     text: str
@@ -20,9 +18,9 @@ router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-responses = {400: {"model": HTTPError}, 500: {"model": HTTPError}}
+responses = {400: {"content": HTTPError}, 500: {"content": HTTPError}, 200: {"content:": {"video/mp4": {}}}}
 
-@router.post("/lipsync", response_model=VideoResponse, responses=responses)
+@router.post("/lipsync", responses=responses)
 async def lipsync(
     text_input: str = Form(...),
     image: UploadFile = File(...),
@@ -47,6 +45,7 @@ async def lipsync(
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
 
+   
     try:
         output_video_path = pipeline(
             text_input,
@@ -57,7 +56,18 @@ async def lipsync(
         logger.error(f"LipsyncPipeline error: {e}")
         logger.exception(e)
         return JSONResponse(
-            status_code=500, content={"detail": "LipsyncPipeline error"}
+            status_code=500,
+            content={
+                "detail": f"Internal Server Error: {str(e)}"
+            },
         )
 
-    return {"video_url": output_video_path}
+    if os.path.exists(output_video_path):
+        return FileResponse(path=output_video_path, media_type='video/mp4', filename="lipsync_video.mp4")
+    else:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": f"no output found for {output_video_path}"
+            },
+        )

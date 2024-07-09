@@ -42,9 +42,9 @@ class LipsyncPipeline(Pipeline):
         # Generate LipSync
         temp_image_file_path = save_image_to_temp_file(image_file)
         output_path = "/app/output"  # Set the correct output path inside the Docker container
-        self.generate_real3d_lipsync(temp_image_file_path, audio_path, output_path)
+        lipsync_output_path = self.generate_real3d_lipsync(temp_image_file_path, audio_path, output_path)
 
-        return output_path
+        return lipsync_output_path
 
     def generate_real3d_lipsync(self, image_path, audio_path, output_path):
         
