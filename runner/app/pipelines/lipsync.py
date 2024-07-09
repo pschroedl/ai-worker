@@ -36,13 +36,15 @@ class LipsyncPipeline(Pipeline):
 
     def __call__(self, text, image_file, seed=None, model_id="real3dportrait"):
         self.model_id = model_id
+
+        # Save Source Image to Disk
+        temp_image_file_path = save_image_to_temp_file(image_file)
+
         # Generate Voice
         audio_path = self.generate_speech(text)
-        # audio_path = "/tmp/output_speech.wav"
+
         # Generate LipSync
-        temp_image_file_path = save_image_to_temp_file(image_file)
-        output_path = "/app/output"  # Set the correct output path inside the Docker container
-        lipsync_output_path = self.generate_real3d_lipsync(temp_image_file_path, audio_path, output_path)
+        lipsync_output_path = self.generate_real3d_lipsync(temp_image_file_path, audio_path, "/app/output")
 
         return lipsync_output_path
 
@@ -95,8 +97,8 @@ class LipsyncPipeline(Pipeline):
         print("Unloading TTS HifiGAN")
         self.unload_model(self.TTS_hifigan)
 
-        # Save the audio - TODO: (pschroedl) create unique filenamesw
-        audio_path = "/tmp/output_speech.wav"
+        unique_audio_filename = f"{uuid.uuid4()}.wav"
+        audio_path = os.path.join("/tmp/", unique_audio_filename)
         sf.write(audio_path, waveform.squeeze().detach().cpu().numpy(), samplerate=22050)
         return audio_path
 
@@ -137,10 +139,6 @@ class LipsyncPipeline(Pipeline):
             print(f"Error merging audio and video: {e}")
             print(f"ffmpeg stdout: {e.stdout}")
             print(f"ffmpeg stderr: {e.stderr}")
-
-def generate_unique_filename(directory: str, extension: str) -> str:
-    unique_filename = f"{uuid.uuid4()}.{extension}"
-    return os.path.join(directory, unique_filename)
 
 def save_image_to_temp_file(image_file):
     image = Image.open(image_file)
