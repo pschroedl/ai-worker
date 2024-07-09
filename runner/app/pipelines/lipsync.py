@@ -1,3 +1,4 @@
+import uuid
 from app.pipelines.base import Pipeline
 from app.pipelines.util import get_torch_device, get_model_dir, SafetyChecker
 from diffusers import StableVideoDiffusionPipeline
@@ -48,7 +49,8 @@ class LipsyncPipeline(Pipeline):
     def generate_real3d_lipsync(self, image_path, audio_path, output_path):
         
         real3dportrait_path = "/models/models--yerfor--Real3DPortrait/"
-        output_video_path = f"{output_path}/result.mp4"  # Set the correct output video path - TODO: (pschroedl) create unique filenames
+        unique_video_filename = generate_unique_filename(output_path, "mp4")
+        output_video_path = os.path.join(output_path, unique_video_filename)
 
         os.chdir(real3dportrait_path)
         # Ensure output directory exists
@@ -135,6 +137,10 @@ class LipsyncPipeline(Pipeline):
             print(f"Error merging audio and video: {e}")
             print(f"ffmpeg stdout: {e.stdout}")
             print(f"ffmpeg stderr: {e.stderr}")
+
+def generate_unique_filename(directory: str, extension: str) -> str:
+    unique_filename = f"{uuid.uuid4()}.{extension}"
+    return os.path.join(directory, unique_filename)
 
 def save_image_to_temp_file(image_file):
     image = Image.open(image_file)
