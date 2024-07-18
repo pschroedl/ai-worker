@@ -21,11 +21,14 @@ from app.pipelines.util import (
     is_lightning_model,
     is_turbo_model,
 )
+import time
 
 logger = logging.getLogger(__name__)
 
 SDXL_LIGHTNING_MODEL_ID = "ByteDance/SDXL-Lightning"
 
+WARMUP_ITERATIONS = 3  # Warm-up calls count when SFAST is enabled.
+WARMUP_BATCH_SIZE = 3  # Max batch size for warm-up calls when SFAST is enabled.
 
 class TextToImagePipeline(Pipeline):
     def __init__(self, model_id: str):
@@ -132,17 +135,34 @@ class TextToImagePipeline(Pipeline):
                 model_id,
             )
             from app.pipelines.optim.sfast import compile_model
+            from app.routes.text_to_image import TextToImageParams
 
             self.ldm = compile_model(self.ldm)
 
             # Warm-up the pipeline.
             # TODO: Not yet supported for ImageToImagePipeline.
             if os.getenv("SFAST_WARMUP", "true").lower() == "true":
-                logger.warning(
-                    "The 'SFAST_WARMUP' flag is not yet supported for the "
-                    "TextToImagePipeline and will be ignored. As a result the first "
-                    "call may be slow if 'SFAST' is enabled."
+                # Retrieve default model params.
+                warmup_kwargs = TextToImageParams(
+                    prompt="A warmed up pipeline is a happy pipeline"
                 )
+                # NOTE: Warmup pipeline.
+                # The initial calls will trigger compilation and might be very slow.
+                # After that, it should be very fast.
+                # FIXME: This will crash the pipeline if there is not enough VRAM available.
+                logger.info("Warming up pipeline...")
+                for i in range(WARMUP_ITERATIONS):
+                    logger.info(f"Warmup iteration {i + 1}...")
+                    t = time.time()
+                    try:
+                        self.ldm(**warmup_kwargs.model_dump()).images[0]
+                    except Exception as e:
+                        logger.error(f"TextToImagePipeline warmup error: {e}")
+                        logger.exception(e)
+                        # FIXME: When cuda out of memory, we need to reload the full model before it works again :(. torch.cuda.clear_cache() does not work.
+                        # continue
+                        raise e
+                    logger.info("Warmup iteration took %s seconds", time.time() - t)
 
         if deepcache_enabled and not (
             is_lightning_model(model_id) or is_turbo_model(model_id)
@@ -205,7 +225,10 @@ class TextToImagePipeline(Pipeline):
                 # Default to 2step
                 kwargs["num_inference_steps"] = 2
 
+        t = time.time()
         output = self.ldm(prompt, **kwargs)
+        # TODO: (pschroedl) remove duration logging after testing
+        logger.info("TextToImagePipeline took %s seconds", time.time() - t)
 
         if safety_check:
             _, has_nsfw_concept = self._safety_checker.check_nsfw_images(output.images)
