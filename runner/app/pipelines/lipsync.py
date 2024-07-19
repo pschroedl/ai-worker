@@ -1,5 +1,6 @@
 import uuid
 from app.pipelines.base import Pipeline
+from app.routes.util import image_to_data_url, ImageResponse, HTTPError, http_error
 from app.pipelines.util import get_torch_device, get_model_dir, SafetyChecker, save_image_to_temp_file
 from diffusers import StableVideoDiffusionPipeline
 from diffusers.utils import load_image, export_to_video
@@ -12,38 +13,38 @@ import logging
 import time
 import gc
 from tqdm import tqdm
-
-
+from PIL import Image
 
 logger = logging.getLogger(__name__)
+
 
 class LipsyncPipeline(Pipeline):
     def __init__(self):
         self.device = get_torch_device()
         # Load FastSpeech 2 and HiFi-GAN models
-        self.TTS_tokenizer = FastSpeech2ConformerTokenizer.from_pretrained("espnet/fastspeech2_conformer", cache_dir=get_model_dir())
-        self.TTS_model = FastSpeech2ConformerModel.from_pretrained("espnet/fastspeech2_conformer", cache_dir=get_model_dir()).to(self.device)
-        self.TTS_hifigan = FastSpeech2ConformerHifiGan.from_pretrained("espnet/fastspeech2_conformer_hifigan", cache_dir=get_model_dir()).to(self.device)
+        # self.TTS_tokenizer = FastSpeech2ConformerTokenizer.from_pretrained("espnet/fastspeech2_conformer", cache_dir=get_model_dir())
+        # self.TTS_model = FastSpeech2ConformerModel.from_pretrained("espnet/fastspeech2_conformer", cache_dir=get_model_dir()).to(self.device)
+        # self.TTS_hifigan = FastSpeech2ConformerHifiGan.from_pretrained("espnet/fastspeech2_conformer_hifigan", cache_dir=get_model_dir()).to(self.device)
 
 
     def __call__(self, text, audio_file, image_file):
         # Save Source Image to Disk
         temp_image_file_path = save_image_to_temp_file(image_file)
+        image = Image.open(temp_image_file_path)
+        # # generate unique filename
+        # unique_audio_filename = f"{uuid.uuid4()}.wav"
+        # audio_path = os.path.join("/tmp/", unique_audio_filename)
 
-        # generate unique filename
-        unique_audio_filename = f"{uuid.uuid4()}.wav"
-        audio_path = os.path.join("/tmp/", unique_audio_filename)
+        # if audio_file is None:
+        #     self.generate_speech(text, audio_path)
+        # else: 
+        #     with open(audio_path, 'wb') as f:
+        #         f.write(audio_file.read())
 
-        if audio_file is None:
-            self.generate_speech(text, audio_path)
-        else: 
-            with open(audio_path, 'wb') as f:
-                f.write(audio_file.read())
+        # # Generate LipSync
+        # lipsync_output_path = self.generate_real3d_lipsync(temp_image_file_path, audio_path, "/app/output")
 
-        # Generate LipSync
-        lipsync_output_path = self.generate_real3d_lipsync(temp_image_file_path, audio_path, "/app/output")
-
-        return lipsync_output_path
+        return image
 
     def generate_real3d_lipsync(self, image_path, audio_path, output_path):
 

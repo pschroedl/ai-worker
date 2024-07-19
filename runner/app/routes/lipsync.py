@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from app.pipelines.base import Pipeline
 from app.dependencies import get_pipeline
-from app.routes.util import image_to_data_url, extract_frames, VideoResponse
+from app.routes.util import image_to_data_url, extract_frames, ImageResponse
 from PIL import Image
 import logging
 import random
@@ -29,7 +29,7 @@ responses = {
     # }
 }
 
-@router.post("/lipsync", responses=responses)
+@router.post("/lipsync", response_model=ImageResponse, responses=responses)
 async def lipsync(
     text_input: Optional[str] = Form(None),
     audio: UploadFile = File(None),
@@ -50,7 +50,7 @@ async def lipsync(
 
 
     try:
-        result = pipeline(
+        img = pipeline(
             text_input,
             audio_file,
             image.file
@@ -63,28 +63,11 @@ async def lipsync(
                 "detail": f"Internal Server Error: {str(e)}"
             },
         )
-    
-    if return_frames:
-        frames = extract_frames(result)
-        seed = random.randint(0, 1000000)
-        has_nsfw_concept = [False]  # TODO: Replace with actual NSFW detection logic
-        
-        output_frames = [
-            {
-                "url": image_to_data_url(frame),
-                "seed": seed,
-                "nsfw": has_nsfw_concept[0],
-            }
-            for frame in frames
-        ]
-        return {"frames": [output_frames]}
-    
-    if os.path.exists(result):
-            return FileResponse(path=result, media_type='video/mp4', filename="lipsync_video.mp4")
-    else:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "detail": f"no output found for {result}"
-            },
-        )
+
+    seed = random.randint(0, 2**32 - 1)
+    output_images = []
+    output_images.append(
+        {"url": image_to_data_url(img), "seed": 123, "nsfw": False }
+    )
+
+    return {"images": output_images}
