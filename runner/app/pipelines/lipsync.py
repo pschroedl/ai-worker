@@ -46,6 +46,46 @@ class LipsyncPipeline(Pipeline):
 
         return image
 
+    def upscale(self, input_image_path, output_path, resolution=1024, num_inference_steps=20, strength=0.2, hdr=0, guidance_scale=6, controlnet_strength=0.75, scheduler_name="DDIM"):
+        # Path to the shell script
+        shell_script_path = "/app/run_upscale.sh"
+
+        # Generate unique filename
+        unique_output_filename = f"{uuid.uuid4()}.png"
+        output_image_path = os.path.join(output_path, unique_output_filename)
+
+        # Ensure output directory exists
+        os.makedirs(output_path, exist_ok=True)
+
+        # Construct the command to run the shell script
+        command = [
+            shell_script_path,
+            input_image_path,
+            output_image_path,
+            str(resolution),
+            str(num_inference_steps),
+            str(strength),
+            str(hdr),
+            str(guidance_scale),
+            str(controlnet_strength),
+            scheduler_name
+        ]
+
+        # Change to the directory where the script is located if needed
+        script_directory = "/models/TileUpscalerV2/"
+        os.chdir(script_directory)
+        print(f"Running command: {' '.join(command)}")
+        
+        # Run the shell script
+        subprocess.run(command, check=True)
+
+        # Check if the output image was created
+        if not os.path.exists(output_image_path):
+            raise FileNotFoundError(f"Cannot find the output image file: {output_image_path}")
+        
+        print("Image processing complete.")
+        return output_image_path
+
     def generate_real3d_lipsync(self, image_path, audio_path, output_path):
 
         # Path to the shell script
@@ -64,7 +104,7 @@ class LipsyncPipeline(Pipeline):
         # Construct the command to run the shell script
         command = [shell_script_path, image_path, audio_path, output_video_path, pose_drv]
 
-        real3dportrait_path = "/models/models--yerfor--Real3DPortrait/"
+        real3dportrait_path = "/models/TileUpscalerV2/"
         os.chdir(real3dportrait_path)
         print(f"Running command: {' '.join(command)}")
         subprocess.run(command, check=True)

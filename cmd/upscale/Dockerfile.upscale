@@ -1,0 +1,7 @@
+FROM livepeer/ai-runner:latest
+
+COPY ./runner/app/ /app/app
+COPY ./cmd/upscale/run_TileUpscalerV2.sh /app/run_TileUpscalerV2.sh
+
+# Expose the debugpy port and start the app as usual.
+CMD ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
