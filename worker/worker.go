@@ -251,14 +251,14 @@ func (w *Worker) Upscale(ctx context.Context, req UpscaleMultipartRequestBody) (
 }
 
 
-func (w *Worker) TextToAudio(ctx context.Context, req TextToAudioJSONRequestBody) (*AudioResponse, error) {
-	c, err := w.borrowContainer(ctx, "text-to-audio", *req.ModelId)
+func (w *Worker) TextToSpeech(ctx context.Context, req TextToSpeechJSONRequestBody) (*ImageResponse, error) {
+	c, err := w.borrowContainer(ctx, "text-to-speech", *req.ModelId)
 	if err != nil {
 		return nil, err
 	}
 	defer w.returnContainer(c)
 
-	resp, err := c.Client.TextToAudioWithResponse(ctx, req)
+	resp, err := c.Client.TextToSpeechFormdataRequestBody(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -268,8 +268,8 @@ func (w *Worker) TextToAudio(ctx context.Context, req TextToAudioJSONRequestBody
 		if err != nil {
 			return nil, err
 		}
-		slog.Error("text-to-audio container returned 422", slog.String("err", string(val)))
-		return nil, errors.New("text-to-audio container returned 422")
+		slog.Error("text-to-speech container returned 422", slog.String("err", string(val)))
+		return nil, errors.New("text-to-speech container returned 422")
 	}
 
 	if resp.JSON400 != nil {
@@ -277,8 +277,8 @@ func (w *Worker) TextToAudio(ctx context.Context, req TextToAudioJSONRequestBody
 		if err != nil {
 			return nil, err
 		}
-		slog.Error("text-to-audio container returned 400", slog.String("err", string(val)))
-		return nil, errors.New("text-to-audio container returned 400")
+		slog.Error("text-to-speech container returned 400", slog.String("err", string(val)))
+		return nil, errors.New("text-to-speech container returned 400")
 	}
 
 	if resp.JSON500 != nil {
@@ -286,8 +286,8 @@ func (w *Worker) TextToAudio(ctx context.Context, req TextToAudioJSONRequestBody
 		if err != nil {
 			return nil, err
 		}
-		slog.Error("text-to-audio container returned 500", slog.String("err", string(val)))
-		return nil, errors.New("text-to-audio container returned 500")
+		slog.Error("text-to-speech container returned 500", slog.String("err", string(val)))
+		return nil, errors.New("text-to-speech container returned 500")
 	}
 
 	return resp.JSON200, nil

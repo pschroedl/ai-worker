@@ -1,8 +1,9 @@
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Annotated
 from fastapi import Depends, APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from app.pipelines.base import Pipeline
+from app.routes.util import AudioResponse
 from app.dependencies import get_pipeline
 import logging
 import random
@@ -26,10 +27,19 @@ responses = {
     }
 }
 
-@router.post("/text-to-audio",
+# class TextToSpeechParams(BaseModel):
+#     # TODO: Make model_id and other None properties optional once Go codegen tool
+#     # supports OAPI 3.1 https://github.com/deepmap/oapi-codegen/issues/373
+#     model_id: str = ""
+#     text: str = ""
+#     gender: str = "male"
+
+
+@router.post("/text-to-speech",
+    response_model=AudioResponse,
     responses=responses)
-async def TextToAudio(
-    text_input: str = Form(...),
+async def TextToSpeech(
+    text_input: Annotated[str, Form()] = "",
     pipeline: Pipeline = Depends(get_pipeline),
 ):
 
@@ -47,7 +57,7 @@ async def TextToAudio(
         )
 
     except Exception as e:
-        logger.error(f"TextToAudioPipeline error: {e}")
+        logger.error(f"TextToSpeechPipeline error: {e}")
         return JSONResponse(
             status_code=500,
             content={"detail": f"Internal Server Error: {str(e)}"},

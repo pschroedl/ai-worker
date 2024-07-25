@@ -405,26 +405,32 @@
                 ]
             }
         },
-        "/text-to-audio": {
+        "/text-to-speech": {
             "post": {
-                "summary": "Texttoaudio",
-                "operationId": "TextToAudio",
+                "summary": "Texttospeech",
+                "operationId": "TextToSpeech",
                 "requestBody": {
                     "content": {
                         "application/x-www-form-urlencoded": {
                             "schema": {
-                                "$ref": "#/components/schemas/Body_TextToAudio_text_to_audio_post"
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/Body_TextToSpeech_text_to_speech_post"
+                                    }
+                                ],
+                                "title": "Body"
                             }
                         }
-                    },
-                    "required": true
+                    }
                 },
                 "responses": {
                     "200": {
                         "description": "Successful Response",
                         "content": {
                             "application/json": {
-                                "schema": {}
+                                "schema": {
+                                    "$ref": "#/components/schemas/AudioResponse"
+                                }
                             },
                             "audio/mp4": {}
                         }
@@ -498,18 +504,28 @@
                 ],
                 "title": "APIError"
             },
-            "Body_TextToAudio_text_to_audio_post": {
+            "AudioResponse": {
                 "properties": {
-                    "text_input": {
-                        "type": "string",
-                        "title": "Text Input"
+                    "audio": {
+                        "$ref": "#/components/schemas/Media"
                     }
                 },
                 "type": "object",
                 "required": [
-                    "text_input"
+                    "audio"
                 ],
-                "title": "Body_TextToAudio_text_to_audio_post"
+                "title": "AudioResponse"
+            },
+            "Body_TextToSpeech_text_to_speech_post": {
+                "properties": {
+                    "text_input": {
+                        "type": "string",
+                        "title": "Text Input",
+                        "default": ""
+                    }
+                },
+                "type": "object",
+                "title": "Body_TextToSpeech_text_to_speech_post"
             },
             "Body_audio_to_text_audio_to_text_post": {
                 "properties": {

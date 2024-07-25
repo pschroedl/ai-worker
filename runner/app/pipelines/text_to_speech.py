@@ -8,7 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class TextToAudioPipeline(Pipeline):
+class TextToSpeechPipeline(Pipeline):
     def __init__(self):
         self.device = get_torch_device()
         # preload FastSpeech 2 & hifigan
@@ -44,5 +44,5 @@ class TextToAudioPipeline(Pipeline):
         return output_file_name
     
     def __str__(self) -> str:
-        return f"TextToAudioPipeline model_id={self.model_id}"
+        return f"TextToSpeechPipeline model_id={self.model_id}"
     
