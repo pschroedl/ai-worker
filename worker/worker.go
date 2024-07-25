@@ -251,14 +251,14 @@ func (w *Worker) Upscale(ctx context.Context, req UpscaleMultipartRequestBody) (
 }
 
 
-func (w *Worker) TextToSpeech(ctx context.Context, req TextToSpeechJSONRequestBody) (*ImageResponse, error) {
+func (w *Worker) TextToSpeech(ctx context.Context, req TextToSpeechJSONRequestBody) (*AudioResponse, error) {
 	c, err := w.borrowContainer(ctx, "text-to-speech", *req.ModelId)
 	if err != nil {
 		return nil, err
 	}
 	defer w.returnContainer(c)
 
-	resp, err := c.Client.TextToSpeechFormdataRequestBody(ctx, req)
+	resp, err := c.Client.TextToSpeechWithResponse(ctx, req)
 	if err != nil {
 		return nil, err
 	}

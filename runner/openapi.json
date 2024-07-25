@@ -847,6 +847,11 @@
                         "type": "string",
                         "title": "Text Input",
                         "default": ""
+                    },
+                    "model_id": {
+                        "type": "string",
+                        "title": "Model Id",
+                        "default": ""
                     }
                 },
                 "type": "object",

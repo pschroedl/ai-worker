@@ -29,6 +29,7 @@ class TextToSpeechParams(BaseModel):
     # TODO: Make model_id and other None properties optional once Go codegen tool
     # supports OAPI 3.1 https://github.com/deepmap/oapi-codegen/issues/373
     text_input: Annotated[str, Form()] = ""
+    model_id: str = ""
 
 
 @router.post("/text-to-speech",
