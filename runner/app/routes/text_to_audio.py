@@ -26,24 +26,31 @@ responses = {
     }
 }
 
-@router.post("/text-to-audio", responses=responses)
+@router.post("/text-to-audio",
+    responses=responses)
 async def TextToAudio(
-    text_input: Optional[str] = Form(None),
+    text_input: str = Form(...),
     pipeline: Pipeline = Depends(get_pipeline),
 ):
 
     try:
-        result = pipeline(
-            text_input
+        if not text_input:
+            raise ValueError("text_input is required and cannot be empty.")
+        
+        result = pipeline(text_input)
+
+    except ValueError as ve:
+        logger.error(f"Validation error: {ve}")
+        return JSONResponse(
+            status_code=400,
+            content={"detail": str(ve)},
         )
 
     except Exception as e:
         logger.error(f"TextToAudioPipeline error: {e}")
         return JSONResponse(
             status_code=500,
-            content={
-                "detail": f"Internal Server Error: {str(e)}"
-            },
+            content={"detail": f"Internal Server Error: {str(e)}"},
         )
 
     if os.path.exists(result):

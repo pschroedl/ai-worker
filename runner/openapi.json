@@ -413,15 +413,11 @@
                     "content": {
                         "application/x-www-form-urlencoded": {
                             "schema": {
-                                "allOf": [
-                                    {
-                                        "$ref": "#/components/schemas/Body_TextToAudio_text_to_audio_post"
-                                    }
-                                ],
-                                "title": "Body"
+                                "$ref": "#/components/schemas/Body_TextToAudio_text_to_audio_post"
                             }
                         }
-                    }
+                    },
+                    "required": true
                 },
                 "responses": {
                     "200": {
@@ -505,19 +501,34 @@
             "Body_TextToAudio_text_to_audio_post": {
                 "properties": {
                     "text_input": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
+                        "type": "string",
                         "title": "Text Input"
                     }
                 },
                 "type": "object",
+                "required": [
+                    "text_input"
+                ],
                 "title": "Body_TextToAudio_text_to_audio_post"
+            },
+            "Body_audio_to_text_audio_to_text_post": {
+                "properties": {
+                    "audio": {
+                        "type": "string",
+                        "format": "binary",
+                        "title": "Audio"
+                    },
+                    "model_id": {
+                        "type": "string",
+                        "title": "Model Id",
+                        "default": ""
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "audio"
+                ],
+                "title": "Body_audio_to_text_audio_to_text_post"
             },
             "Body_image_to_image_image_to_image_post": {
                 "properties": {
