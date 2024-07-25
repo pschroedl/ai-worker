@@ -1,13 +1,11 @@
-from typing import Optional, Union, List, Annotated
-from fastapi import Depends, APIRouter, UploadFile, File, Form, HTTPException
+from typing import Annotated
+from fastapi import Depends, APIRouter, Form
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from app.pipelines.base import Pipeline
 from app.routes.util import AudioResponse
 from app.dependencies import get_pipeline
 import logging
-import random
-import json
 import os
 
 class HTTPError(BaseModel):
@@ -27,27 +25,25 @@ responses = {
     }
 }
 
-# class TextToSpeechParams(BaseModel):
-#     # TODO: Make model_id and other None properties optional once Go codegen tool
-#     # supports OAPI 3.1 https://github.com/deepmap/oapi-codegen/issues/373
-#     model_id: str = ""
-#     text: str = ""
-#     gender: str = "male"
+class TextToSpeechParams(BaseModel):
+    # TODO: Make model_id and other None properties optional once Go codegen tool
+    # supports OAPI 3.1 https://github.com/deepmap/oapi-codegen/issues/373
+    text_input: Annotated[str, Form()] = ""
 
 
 @router.post("/text-to-speech",
     response_model=AudioResponse,
     responses=responses)
-async def TextToSpeech(
-    text_input: Annotated[str, Form()] = "",
+async def text_to_speech(
+    params: TextToSpeechParams,
     pipeline: Pipeline = Depends(get_pipeline),
 ):
 
     try:
-        if not text_input:
+        if not params.text_input:
             raise ValueError("text_input is required and cannot be empty.")
         
-        result = pipeline(text_input)
+        result = pipeline(params.text_input)
 
     except ValueError as ve:
         logger.error(f"Validation error: {ve}")

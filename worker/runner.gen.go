@@ -36,11 +36,6 @@ type AudioResponse struct {
 	Audio Media `json:"audio"`
 }
 
-// BodyTextToSpeechTextToSpeechPost defines model for Body_TextToSpeech_text_to_speech_post.
-type BodyTextToSpeechTextToSpeechPost struct {
-	TextInput *string `json:"text_input,omitempty"`
-}
-
 // BodyAudioToTextAudioToTextPost defines model for Body_audio_to_text_audio_to_text_post.
 type BodyAudioToTextAudioToTextPost struct {
 	Audio   openapi_types.File `json:"audio"`
@@ -133,6 +128,11 @@ type TextToImageParams struct {
 	Width              *int     `json:"width,omitempty"`
 }
 
+// TextToSpeechParams defines model for TextToSpeechParams.
+type TextToSpeechParams struct {
+	TextInput *string `json:"text_input,omitempty"`
+}
+
 // ValidationError defines model for ValidationError.
 type ValidationError struct {
 	Loc  []ValidationError_Loc_Item `json:"loc"`
@@ -162,10 +162,6 @@ type Chunk struct {
 	Timestamp []interface{} `json:"timestamp"`
 }
 
-// TextToSpeechFormdataBody defines parameters for TextToSpeech.
-type TextToSpeechFormdataBody = struct {
-}
-
 // AudioToTextMultipartRequestBody defines body for AudioToText for multipart/form-data ContentType.
 type AudioToTextMultipartRequestBody = BodyAudioToTextAudioToTextPost
 
@@ -178,8 +174,8 @@ type ImageToVideoMultipartRequestBody = BodyImageToVideoImageToVideoPost
 // TextToImageJSONRequestBody defines body for TextToImage for application/json ContentType.
 type TextToImageJSONRequestBody = TextToImageParams
 
-// TextToSpeechFormdataRequestBody defines body for TextToSpeech for application/x-www-form-urlencoded ContentType.
-type TextToSpeechFormdataRequestBody = TextToSpeechFormdataBody
+// TextToSpeechJSONRequestBody defines body for TextToSpeech for application/json ContentType.
+type TextToSpeechJSONRequestBody = TextToSpeechParams
 
 // UpscaleMultipartRequestBody defines body for Upscale for multipart/form-data ContentType.
 type UpscaleMultipartRequestBody = BodyUpscaleUpscalePost
@@ -339,7 +335,7 @@ type ClientInterface interface {
 	// TextToSpeechWithBody request with any body
 	TextToSpeechWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	TextToSpeechWithFormdataBody(ctx context.Context, body TextToSpeechFormdataRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	TextToSpeech(ctx context.Context, body TextToSpeechJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpscaleWithBody request with any body
 	UpscaleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -429,8 +425,8 @@ func (c *Client) TextToSpeechWithBody(ctx context.Context, contentType string, b
 	return c.Client.Do(req)
 }
 
-func (c *Client) TextToSpeechWithFormdataBody(ctx context.Context, body TextToSpeechFormdataRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewTextToSpeechRequestWithFormdataBody(c.Server, body)
+func (c *Client) TextToSpeech(ctx context.Context, body TextToSpeechJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTextToSpeechRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -607,15 +603,15 @@ func NewTextToImageRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
-// NewTextToSpeechRequestWithFormdataBody calls the generic TextToSpeech builder with application/x-www-form-urlencoded body
-func NewTextToSpeechRequestWithFormdataBody(server string, body TextToSpeechFormdataRequestBody) (*http.Request, error) {
+// NewTextToSpeechRequest calls the generic TextToSpeech builder with application/json body
+func NewTextToSpeechRequest(server string, body TextToSpeechJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
-	bodyStr, err := runtime.MarshalForm(body, nil)
+	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
-	bodyReader = strings.NewReader(bodyStr.Encode())
-	return NewTextToSpeechRequestWithBody(server, "application/x-www-form-urlencoded", bodyReader)
+	bodyReader = bytes.NewReader(buf)
+	return NewTextToSpeechRequestWithBody(server, "application/json", bodyReader)
 }
 
 // NewTextToSpeechRequestWithBody generates requests for TextToSpeech with any type of body
@@ -739,7 +735,7 @@ type ClientWithResponsesInterface interface {
 	// TextToSpeechWithBodyWithResponse request with any body
 	TextToSpeechWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TextToSpeechResponse, error)
 
-	TextToSpeechWithFormdataBodyWithResponse(ctx context.Context, body TextToSpeechFormdataRequestBody, reqEditors ...RequestEditorFn) (*TextToSpeechResponse, error)
+	TextToSpeechWithResponse(ctx context.Context, body TextToSpeechJSONRequestBody, reqEditors ...RequestEditorFn) (*TextToSpeechResponse, error)
 
 	// UpscaleWithBodyWithResponse request with any body
 	UpscaleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpscaleResponse, error)
@@ -989,8 +985,8 @@ func (c *ClientWithResponses) TextToSpeechWithBodyWithResponse(ctx context.Conte
 	return ParseTextToSpeechResponse(rsp)
 }
 
-func (c *ClientWithResponses) TextToSpeechWithFormdataBodyWithResponse(ctx context.Context, body TextToSpeechFormdataRequestBody, reqEditors ...RequestEditorFn) (*TextToSpeechResponse, error) {
-	rsp, err := c.TextToSpeechWithFormdataBody(ctx, body, reqEditors...)
+func (c *ClientWithResponses) TextToSpeechWithResponse(ctx context.Context, body TextToSpeechJSONRequestBody, reqEditors ...RequestEditorFn) (*TextToSpeechResponse, error) {
+	rsp, err := c.TextToSpeech(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -1380,7 +1376,7 @@ type ServerInterface interface {
 	// Text To Image
 	// (POST /text-to-image)
 	TextToImage(w http.ResponseWriter, r *http.Request)
-	// Texttospeech
+	// Text To Speech
 	// (POST /text-to-speech)
 	TextToSpeech(w http.ResponseWriter, r *http.Request)
 	// Upscale
@@ -1422,7 +1418,7 @@ func (_ Unimplemented) TextToImage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Texttospeech
+// Text To Speech
 // (POST /text-to-speech)
 func (_ Unimplemented) TextToSpeech(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -1699,34 +1695,33 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

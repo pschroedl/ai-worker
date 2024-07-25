@@ -407,21 +407,17 @@
         },
         "/text-to-speech": {
             "post": {
-                "summary": "Texttospeech",
-                "operationId": "TextToSpeech",
+                "summary": "Text To Speech",
+                "operationId": "text_to_speech",
                 "requestBody": {
                     "content": {
-                        "application/x-www-form-urlencoded": {
+                        "application/json": {
                             "schema": {
-                                "allOf": [
-                                    {
-                                        "$ref": "#/components/schemas/Body_TextToSpeech_text_to_speech_post"
-                                    }
-                                ],
-                                "title": "Body"
+                                "$ref": "#/components/schemas/TextToSpeechParams"
                             }
                         }
-                    }
+                    },
+                    "required": true
                 },
                 "responses": {
                     "200": {
@@ -515,17 +511,6 @@
                     "audio"
                 ],
                 "title": "AudioResponse"
-            },
-            "Body_TextToSpeech_text_to_speech_post": {
-                "properties": {
-                    "text_input": {
-                        "type": "string",
-                        "title": "Text Input",
-                        "default": ""
-                    }
-                },
-                "type": "object",
-                "title": "Body_TextToSpeech_text_to_speech_post"
             },
             "Body_audio_to_text_audio_to_text_post": {
                 "properties": {
@@ -855,6 +840,17 @@
                     "prompt"
                 ],
                 "title": "TextToImageParams"
+            },
+            "TextToSpeechParams": {
+                "properties": {
+                    "text_input": {
+                        "type": "string",
+                        "title": "Text Input",
+                        "default": ""
+                    }
+                },
+                "type": "object",
+                "title": "TextToSpeechParams"
             },
             "ValidationError": {
                 "properties": {
