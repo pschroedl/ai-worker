@@ -250,14 +250,20 @@ func (w *Worker) Upscale(ctx context.Context, req UpscaleMultipartRequestBody) (
 	return resp.JSON200, nil
 }
 
-func (w *Worker) AudioToText(ctx context.Context, req TextToAudioJSONRequestBody) (*AudioResponse, error) {
+func (w *Worker) AudioToText(ctx context.Context, req AudioToTextMultipartRequestBody) (*TextResponse, error) {
 	c, err := w.borrowContainer(ctx, "audio-to-text", *req.ModelId)
 	if err != nil {
 		return nil, err
 	}
 	defer w.returnContainer(c)
 
-	resp, err := c.Client.AudioToTextWithResponse(ctx, req)
+	var buf bytes.Buffer
+	mw, err := NewAudioToTextMultipartWriter(&buf, req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Client.AudioToTextWithBodyWithResponse(ctx, mw.FormDataContentType(), &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -278,6 +284,12 @@ func (w *Worker) AudioToText(ctx context.Context, req TextToAudioJSONRequestBody
 		}
 		slog.Error("audio-to-text container returned 400", slog.String("err", string(val)))
 		return nil, errors.New("audio-to-text container returned 400")
+	}
+
+	if resp.JSON413 != nil {
+		msg := "audio-to-text container returned 413 file too large; max file size is 50MB"
+		slog.Error("audio-to-text container returned 413", slog.String("err", string(msg)))
+		return nil, errors.New(msg)
 	}
 
 	if resp.JSON500 != nil {
