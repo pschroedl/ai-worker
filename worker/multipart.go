@@ -75,6 +75,11 @@ func NewImageToImageMultipartWriter(w io.Writer, req ImageToImageMultipartReques
 			return nil, err
 		}
 	}
+	if req.NumInferenceSteps != nil {
+		if err := mw.WriteField("num_inference_steps", strconv.Itoa(*req.NumInferenceSteps)); err != nil {
+			return nil, err
+		}
+	}
 
 	if err := mw.Close(); err != nil {
 		return nil, err
@@ -142,6 +147,11 @@ func NewImageToVideoMultipartWriter(w io.Writer, req ImageToVideoMultipartReques
 			return nil, err
 		}
 	}
+	if req.NumInferenceSteps != nil {
+		if err := mw.WriteField("num_inference_steps", strconv.Itoa(*req.NumInferenceSteps)); err != nil {
+			return nil, err
+		}
+	}
 
 	if err := mw.Close(); err != nil {
 		return nil, err
@@ -182,8 +192,40 @@ func NewUpscaleMultipartWriter(w io.Writer, req UpscaleMultipartRequestBody) (*m
 			return nil, err
 		}
 	}
-	if req.Seed != nil {
-		if err := mw.WriteField("seed", strconv.Itoa(*req.Seed)); err != nil {
+	if req.NumInferenceSteps != nil {
+		if err := mw.WriteField("num_inference_steps", strconv.Itoa(*req.NumInferenceSteps)); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := mw.Close(); err != nil {
+		return nil, err
+	}
+
+	return mw, nil
+}
+
+func NewAudioToTextMultipartWriter(w io.Writer, req AudioToTextMultipartRequestBody) (*multipart.Writer, error) {
+	mw := multipart.NewWriter(w)
+	writer, err := mw.CreateFormFile("audio", req.Audio.Filename())
+	if err != nil {
+		return nil, err
+	}
+	audioSize := req.Audio.FileSize()
+	audioRdr, err := req.Audio.Reader()
+	if err != nil {
+		return nil, err
+	}
+	copied, err := io.Copy(writer, audioRdr)
+	if err != nil {
+		return nil, err
+	}
+	if copied != audioSize {
+		return nil, fmt.Errorf("failed to copy audio to multipart request audioBytes=%v copiedBytes=%v", audioSize, copied)
+	}
+
+	if req.ModelId != nil {
+		if err := mw.WriteField("model_id", *req.ModelId); err != nil {
 			return nil, err
 		}
 	}
