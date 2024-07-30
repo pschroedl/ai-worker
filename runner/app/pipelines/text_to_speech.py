@@ -2,6 +2,7 @@ import uuid
 from app.pipelines.base import Pipeline
 from app.pipelines.util import get_torch_device, get_model_dir
 from transformers import FastSpeech2ConformerTokenizer, FastSpeech2ConformerModel, FastSpeech2ConformerHifiGan
+from huggingface_hub import file_download
 import soundfile as sf
 import os
 import logging
@@ -9,7 +10,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 class TextToSpeechPipeline(Pipeline):
-    def __init__(self):
+    def __init__(self, model_id: str):
+        self.model_id = model_id
+        # kwargs = {"cache_dir": get_model_dir()}
+
+        # folder_name = file_download.repo_folder_name(
+        #     repo_id=model_id, repo_type="model"
+        # )
+        # folder_path = os.path.join(get_model_dir(), folder_name)
         self.device = get_torch_device()
         # preload FastSpeech 2 & hifigan
         self.TTS_tokenizer = FastSpeech2ConformerTokenizer.from_pretrained("espnet/fastspeech2_conformer", cache_dir=get_model_dir())
