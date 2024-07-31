@@ -1,6 +1,6 @@
 import uuid
 from app.pipelines.base import Pipeline
-from app.pipelines.util import get_torch_device, get_model_dir
+from app.pipelines.utils import get_torch_device, get_model_dir
 from transformers import FastSpeech2ConformerTokenizer, FastSpeech2ConformerModel, FastSpeech2ConformerHifiGan
 from huggingface_hub import file_download
 import soundfile as sf
