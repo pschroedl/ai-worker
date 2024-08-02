@@ -26,8 +26,6 @@ responses = {
 }
 
 class TextToSpeechParams(BaseModel):
-    # TODO: Make model_id and other None properties optional once Go codegen tool
-    # supports OAPI 3.1 https://github.com/deepmap/oapi-codegen/issues/373
     text_input: Annotated[str, Form()] = ""
     model_id: str = ""
 
@@ -61,7 +59,7 @@ async def text_to_speech(
         )
 
     if os.path.exists(result):
-            return FileResponse(path=result, media_type='audio/mp4', filename="generated_audio.mp4")
+        return FileResponse(path=result, media_type='audio/mp4', filename="generated_audio.mp4")
     else:
         return JSONResponse(
             status_code=400,
