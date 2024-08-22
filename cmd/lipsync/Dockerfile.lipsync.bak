@@ -1,0 +1,64 @@
+# Stage 1: Build mmcv-full in a separate image
+FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu20.04 AS builder
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install necessary build tools and Python
+RUN apt-get update && apt-get install -y \
+    ffmpeg libsm6 libxext6 python3-dev ninja-build \
+    gawk bison gcc make wget tar git bzip2 python3-pip python3.9 \
+    build-essential cmake libgl1-mesa-dev libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and install openmim
+RUN pip3 install --upgrade pip && \
+    pip3 install openmim==0.3.9
+
+# Install PyTorch with CUDA 11.7 support
+RUN pip3 install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --extra-index-url https://download.pytorch.org/whl/cu117
+
+RUN pip3 install setuptools 
+# Install mmcv using openmim
+RUN pip3 install mmcv==2.1.0 -f https://download.openmmlab.com/mmcv/dist/cu117/torch2.0/index.html
+
+# Stage 2: Copy the built package and set up the final image
+FROM livepeer/ai-runner:base
+
+# Install necessary dependencies with CUDA 12.1
+RUN apt-get update && apt-get install -y \
+    ffmpeg libsm6 libxext6 python3-dev ninja-build cuda-toolkit-12-1 \
+    gawk bison gcc make wget tar git bzip2 python3-pip python3.9 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install GLIBC 2.35
+RUN wget http://mirrors.edge.kernel.org/ubuntu/pool/main/g/glibc/libc6_2.35-0ubuntu3_amd64.deb && \
+    dpkg -i libc6_2.35-0ubuntu3_amd64.deb || apt-get install -f -y
+
+# # Verify the GLIBC installation
+# RUN ldd --version
+
+# Copy mmcv-full from the builder stage
+COPY --from=builder /usr/local/lib/python3.9/dist-packages /usr/local/lib/python3.9/dist-packages
+
+# Clone the repository
+ARG REPO_URL=https://github.com/yerfor/Real3DPortrait.git
+ARG REPO_DIR=/models--yerfor--Real3DPortrait
+RUN git clone $REPO_URL $REPO_DIR
+
+# Set the working directory
+WORKDIR $REPO_DIR
+
+# Install remaining Python dependencies
+RUN pip3 install --upgrade pip && \
+    pip3 install cython && \
+    pip3 install -r docs/prepare_env/requirements.txt -v && \
+    pip3 install -r docs/prepare_env/requirements.txt -v --use-deprecated=legacy-resolver
+
+# Install PyTorch3D with CUDA 12.1 support
+RUN pip3 install pytorch3d==0.7.0+cu121 -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/cu121/torch2.0/index.html
+
+# Copy the application files
+COPY ./runner/app/ /app/app
+COPY ./cmd/lipsync/run_real3dportrait.sh /app/run_real3dportrait.sh
+
+# Start the application using Uvicorn
+CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]
