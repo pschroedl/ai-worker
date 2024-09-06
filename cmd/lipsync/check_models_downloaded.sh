@@ -1,4 +1,5 @@
 #!/bin/bash
+ROOT_DIR=$(eval echo $1)
 # Navigate to the repository directory
 cd ${ROOT_DIR}/models/models--yerfor--Real3DPortrait
 # Check if all required files are in place

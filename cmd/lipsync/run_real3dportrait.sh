@@ -13,8 +13,8 @@ activate_conda_env() {
 
 # activate_conda_env "/models/models--yerfor--Real3DPortrait/anaconda3"
 # Activate the conda environment
-source /models/models--yerfor--Real3DPortrait/anaconda3/etc/profile.d/conda.sh
-eval "$(/models/models--yerfor--Real3DPortrait/anaconda3/bin/conda shell.bash hook)"
+source /Real3DPortrait_temp_repo/anaconda3/etc/profile.d/conda.sh
+eval "$(/Real3DPortrait_temp_repo/anaconda3/bin/conda shell.bash hook)"
 conda init
 source /root/.bashrc
 conda activate real3dportrait
@@ -23,11 +23,11 @@ which python
 python --version
 
 # Set PYTHONPATH
-export PYTHONPATH="/models/models--yerfor--Real3DPortrait:$PYTHONPATH"
-cd /models/models--yerfor--Real3DPortrait
+export PYTHONPATH="/Real3DPortrait_temp_repo/:$PYTHONPATH"
+cd /Real3DPortrait_temp_repo/
 
 # Run the Real3DPortrait inference command
-python /models/models--yerfor--Real3DPortrait/inference/real3d_infer.py \
+python inference/real3d_infer.py \
   --src_img "$1" \
   --drv_aud "$2" \
   --out_name "$3" \
