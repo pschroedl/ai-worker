@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu20.04
+FROM us-east1-docker.pkg.dev/livepeer-dev/livepeer-dev-repo/ai-runner:base
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Add the DeadSnakes PPA to get Python 3.10
@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y software-properties-common \
 # Install necessary build tools and Python
 RUN apt-get update && apt-get install -y \
     ffmpeg libsm6 libxext6 python3-dev ninja-build \
-    gawk bison gcc make wget tar git bzip2 python3-pip python3.10 python3.10-dev \
+    gawk bison gcc make wget tar git bzip2 python3-pip python3.10 python3.10-dev python3.10-venv\
     build-essential cmake libgl1-mesa-dev libglib2.0-0 \
     libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
     curl llvm libncurses5-dev libncursesw5-dev \
@@ -31,27 +31,15 @@ RUN apt-get update && apt-get install -y \
     libbrotli-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Python 3.9 as the default version
+# Set Python 3.10 as the version for lipsync venv
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 \
     && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 \
     && python --version
 
-# Install pyenv
-RUN curl https://pyenv.run | bash
-
-# Set environment variables for pyenv
-ENV PYENV_ROOT /root/.pyenv
-ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
-
-# Install your desired Python version
-ARG PYTHON_VERSION=3.10
-RUN pyenv install $PYTHON_VERSION && \
-  pyenv global $PYTHON_VERSION && \
-  pyenv rehash
-
 # create and activate our venv
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+ENV VIRTUAL_ENV=/opt/lipsync_venv
+RUN python3.10 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Upgrade pip (24.2?) and install openmim
 # RUN python3.9 -m pip install --upgrade pip
@@ -101,11 +89,13 @@ RUN apt-get update && apt-get install -y wget software-properties-common \
     && apt-get install -y cuda-toolkit-12-1
 
 
-# Copy the application files
 COPY ./runner/app/ /app/app
-# COPY ./cmd/lipsync/run_real3dportrait.sh /app/run_real3dportrait.sh
-COPY ./cmd/lipsync/run_inference.sh /app/run_inference.sh
+COPY ./cmd/lipsync/run_real3dportrait.sh /app/run_real3dportrait.sh
+# COPY ./cmd/lipsync/run_inference.sh /app/run_inference.sh
+WORKDIR /app/
 
-# Start the application using Uvicorn
 # CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]
-CMD ["bash", "/app/run_inference.sh"]
+# CMD ["bash", "/app/run_inference.sh"]
+
+# Ensure the virtual environment is activated before starting Uvicorn
+ENTRYPOINT ["bash", "-c", "source /opt/venv/bin/activate && exec uvicorn app.main:app --log-config app/cfg/uvicorn_logging_config.json --host 0.0.0.0 --port 8000"]
