@@ -1,13 +1,19 @@
-# Use the custom base image
-FROM livepeer/ai-runner:base
-
+FROM pschroedl/ai-runner:base
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    cmake \
-    wget \
-    bzip2 \
-    git \
+# Add the DeadSnakes PPA to get Python 3.10
+RUN apt-get update && apt-get install -y software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update
+
+# Install necessary build tools and Python
+RUN apt-get update && apt-get install -y \
+    ffmpeg libsm6 libxext6 python3-dev ninja-build \
+    gawk bison gcc make wget tar git bzip2 python3-pip python3.10 python3.10-dev python3.10-venv\
+    build-essential cmake libgl1-mesa-dev libglib2.0-0 \
+    libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
+    curl llvm libncurses5-dev libncursesw5-dev \
+    xz-utils tk-dev libffi-dev liblzma-dev python3-openssl \
     portaudio19-dev \
     libasound2-dev \
     libjack-jackd2-dev \
@@ -22,95 +28,88 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpng-dev \
     libjpeg-dev \
     libwebp-dev \
-    libbrotli-dev && \
-    rm -rf /var/lib/apt/lists/*
+    libbrotli-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Download and build JPEG XL from source
-RUN git clone https://github.com/libjxl/libjxl.git /tmp/libjxl && \
-    cd /tmp/libjxl && \
-    git submodule update --init --recursive && \
-    mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release && \
-    make -j$(nproc) && \
-    make install && \
-    ldconfig && \
-    rm -rf /tmp/libjxl
+# Set Python 3.10 as the version for lipsync venv
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 \
+    && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 \
+    && python --version
+
+# create and activate our venv
+ENV VIRTUAL_ENV=/opt/lipsync_venv
+RUN python3.10 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Upgrade pip (24.2?) and install openmim
+# RUN python3.9 -m pip install --upgrade pip
+# RUN apt-get remove -y python3-yaml
+RUN pip install -U openmim==0.3.9
+
+# Install PyTorch with CUDA 12.1 support
+RUN pip3 install torch==2.3.1 --extra-index-url https://download.pytorch.org/whl/cu121
+
+RUN pip3 install setuptools 
+# Install mmcv using openmim
+RUN pip3 install mmcv==2.2.0 -f https://download.openmmlab.com/mmcv/dist/cu121/torch2.4/index.html
 
 # Download and install GLIBC 2.35
 RUN wget http://mirrors.edge.kernel.org/ubuntu/pool/main/g/glibc/libc6_2.35-0ubuntu3_amd64.deb && \
     dpkg -i libc6_2.35-0ubuntu3_amd64.deb || apt-get install -f -y
 
-# Define the Python version for conda environment
-ARG PYTHON_VERSION=3.9
-
-# Set environment variables for Anaconda
-ENV CONDA_INSTALLER=Anaconda3-2024.06-1-Linux-x86_64.sh \
-    CONDA_DIR=/models/models--yerfor--Real3DPortrait/anaconda3 \
-    REPO_DIR=/models/models--yerfor--Real3DPortrait \
-    ENV_NAME=real3dportrait
-
-# Step 1: Download and install Anaconda
-RUN wget https://repo.anaconda.com/archive/$CONDA_INSTALLER && \
-    bash ./$CONDA_INSTALLER -b -p $CONDA_DIR && \
-    rm $CONDA_INSTALLER
-
-# Add conda to PATH
-ENV PATH="$CONDA_DIR/bin:$PATH"
 # Clone the repository
 ARG REPO_URL=https://github.com/pschroedl/Real3DPortrait.git
-ARG REQ_TXT_PATH=/Real3DPortrait_temp_repo
-RUN git clone --single-branch --branch resolve_dependency_conflicts $REPO_URL $REQ_TXT_PATH
+ARG REPO_DIR=/models--yerfor--Real3DPortrait
+RUN git clone -b upgrade_scipy $REPO_URL $REPO_DIR
 
-# Set the working directory to the mounted repository from the host
+# Set the working directory
 WORKDIR $REPO_DIR
+# RUN apt-get update && apt-get install -y --fix-broken --allow-remove-essential
+# RUN apt-get update && apt-get install portaudio19-dev
+# RUN pip3 install pyaudio
+# Install remaining Python dependencies
+RUN pip3 install setuptools==60.2.0
+RUN pip3 install numpy==1.23.0
+RUN pip3 install cython && \
+    pip3 install -r docs/prepare_env/requirements.txt -v && \
+    pip3 install -r docs/prepare_env/requirements.txt -v --use-deprecated=legacy-resolver
 
-# Step 3: Create the conda environment with the specified Python version
-RUN conda create -p $CONDA_DIR/envs/$ENV_NAME python=$PYTHON_VERSION -y
+# Install PyTorch3D with CUDA 12.1 support
+RUN pip3 install iopath fvcore
+RUN pip3 install --no-index --no-cache-dir pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt231/download.html
 
-RUN conda install -n $ENV_NAME cudatoolkit=11.7 cudatoolkit-dev=11.7 -c conda-forge -y && \
-    conda run -n $ENV_NAME nvcc --version && \
-    conda install -n $ENV_NAME conda-forge::ffmpeg pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.7 -c pytorch -c nvidia -y && \
-    conda run -n $ENV_NAME pip install dlib==19.24.6 && \
-    conda run -n $ENV_NAME pip install fvcore==0.1.4 && \
-    conda run -n $ENV_NAME pip install -f --no-index --no-cache-dir pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py39_cu117_pyt201/download.html && \
-    conda install -n $ENV_NAME  setuptools=59.5.0 -y && \
-    conda run -n $ENV_NAME pip install cython openmim==0.3.9 && \
-    conda run -n $ENV_NAME mim install mmcv==2.1.0
-
-# Step 6: Clone the PyTorch3D repository
-RUN git clone https://github.com/facebookresearch/pytorch3d.git /opt/pytorch3d
+# Install CUDA toolkit from the NVIDIA repository
+RUN apt-get update && apt-get install -y wget software-properties-common \
+    && wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin \
+    && mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600 \
+    && wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub -O /tmp/cuda-repo.gpg \
+    && apt-key add /tmp/cuda-repo.gpg \
+    && add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /" \
+    && apt-get update \
+    && apt-get install -y cuda-toolkit-12-1
 
 
 
-RUN /bin/bash -c "source activate $ENV_NAME && \
-    conda run -n $ENV_NAME nvcc --version && \
-    pip install numpy==1.23.0 scipy==1.11.1"
-
-RUN /bin/bash -c "source activate $ENV_NAME && \
-    conda run -n $ENV_NAME nvcc --version && \
-    export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda && \
-    export CUDA_NVCC_EXECUTABLE=$CUDA_HOME/bin/nvcc && \
-    export CUDA_INCLUDE_DIRS=$CUDA_HOME/include && \
-    export CUDA_CUDART_LIBRARY=$CUDA_HOME/lib64/libcudart.so && \
-    export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH && \
-    pip install -r $REQ_TXT_PATH/docs/prepare_env/requirements.txt -v && \
-    pip install -r $REQ_TXT_PATH/docs/prepare_env/requirements.txt -v --use-deprecated=legacy-resolver"
-# Step 7: Install PyTorch3D dependencies and build from source within the conda environment
-RUN conda run -n $ENV_NAME bash -c "\
-    export CUDA_HOME=\$(conda info --base)/envs/$ENV_NAME; \
-    export PATH=\$CUDA_HOME/bin:\$PATH; \
-    export LD_LIBRARY_PATH=\$CUDA_HOME/lib64:\$LD_LIBRARY_PATH; \
-    export CUDA_TOOLKIT_ROOT_DIR=\$CUDA_HOME; \
-    export CUDA_NVCC_EXECUTABLE=\$CUDA_HOME/bin/nvcc; \
-    export CUDA_INCLUDE_DIRS=\$CUDA_HOME/include; \
-    export CUDA_CUDART_LIBRARY=\$CUDA_HOME/lib64/libcudart.so; \
-    pip install -r /opt/pytorch3d/requirements.txt -v; \
-    pip install -e /opt/pytorch3d; \
-    "
-RUN /bin/bash -c "source activate $ENV_NAME && \
-    conda run -n $ENV_NAME nvcc --version"
-WORKDIR /app
-COPY ./runner/app/ /app/app
 COPY ./cmd/lipsync/run_real3dportrait.sh /app/run_real3dportrait.sh
 
-CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]
+WORKDIR /app/
+
+# reactivat origininal venv for overrides
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+COPY ./runner/requirements.txt /app
+RUN pip install --no-cache-dir -r requirements.txt
+# CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]
+WORKDIR /app/
+
+
+# create and activate our venv
+# ENV VIRTUAL_ENV=/opt/lipsync_venv
+
+# ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+# COPY ./cmd/lipsync/run_real3dportrait_now.sh /app/run_real3dportrait_now.sh
+ENV PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/sbin:$PATH"
+# ENTRYPOINT ["bash", "/app/run_real3dportrait_now.sh"]
+COPY ./runner/app/ /app/app
+# Ensure the virtual environment is activated before starting Uvicorn
+ENTRYPOINT ["bash", "-c", "source /opt/venv/bin/activate && exec uvicorn app.main:app --log-config app/cfg/uvicorn_logging_config.json --host 0.0.0.0 --port 8000"]

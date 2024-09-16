@@ -1,4 +1,4 @@
-FROM us-east1-docker.pkg.dev/livepeer-dev/livepeer-dev-repo/ai-runner:base
+FROM livepeer/ai-runner:base
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Add the DeadSnakes PPA to get Python 3.10
