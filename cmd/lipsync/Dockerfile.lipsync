@@ -64,9 +64,6 @@ RUN git clone -b upgrade_scipy $REPO_URL $REPO_DIR
 
 # Set the working directory
 WORKDIR $REPO_DIR
-# RUN apt-get update && apt-get install -y --fix-broken --allow-remove-essential
-# RUN apt-get update && apt-get install portaudio19-dev
-# RUN pip3 install pyaudio
 # Install remaining Python dependencies
 RUN pip3 install setuptools==60.2.0
 RUN pip3 install numpy==1.23.0
@@ -88,13 +85,9 @@ RUN apt-get update && apt-get install -y wget software-properties-common \
     && apt-get update \
     && apt-get install -y cuda-toolkit-12-1
 
-
-
-COPY ./cmd/lipsync/run_real3dportrait.sh /app/run_real3dportrait.sh
-
 WORKDIR /app/
 
-# reactivat origininal venv for overrides
+# reactivate origininal venv for overrides TODO: Fix me
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 COPY ./runner/requirements.txt /app
@@ -102,14 +95,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # CMD ["uvicorn", "app.main:app", "--log-config", "app/cfg/uvicorn_logging_config.json", "--host", "0.0.0.0", "--port", "8000"]
 WORKDIR /app/
 
-
-# create and activate our venv
-# ENV VIRTUAL_ENV=/opt/lipsync_venv
-
-# ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-# COPY ./cmd/lipsync/run_real3dportrait_now.sh /app/run_real3dportrait_now.sh
 ENV PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/sbin:$PATH"
-# ENTRYPOINT ["bash", "/app/run_real3dportrait_now.sh"]
 COPY ./runner/app/ /app/app
 # Ensure the virtual environment is activated before starting Uvicorn
 ENTRYPOINT ["bash", "-c", "source /opt/venv/bin/activate && exec uvicorn app.main:app --log-config app/cfg/uvicorn_logging_config.json --host 0.0.0.0 --port 8000"]

@@ -141,7 +141,7 @@ class LipsyncPipeline(Pipeline):
         generation = self.TTS_model.generate(input_ids=input_ids, prompt_input_ids=prompt_input_ids)
         generated_audio = generation.cpu().numpy().squeeze()
 
-        sf.write(output_file_name, generated_audio, samplerate=22050)
+        sf.write(output_file_name, generated_audio, samplerate=44100)
         return output_file_name
 
     def unload_model(self, model):
