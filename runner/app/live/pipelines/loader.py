@@ -7,4 +7,7 @@ def load_pipeline(name: str, **params) -> Pipeline:
     elif name == "liveportrait":
         from .liveportrait import LivePortrait
         return LivePortrait(**params)
+    elif name == "sam2":
+        from .sam2 import Sam2
+        return Sam2(**params)
     raise ValueError(f"Unknown pipeline: {name}")
