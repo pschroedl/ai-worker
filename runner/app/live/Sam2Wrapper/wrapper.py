@@ -41,8 +41,8 @@ if torch.cuda.get_device_properties(0).major >= 8:
 if GlobalHydra.instance().is_initialized():
     GlobalHydra.instance().clear()
     
-config_path = "/workspaces/ai-worker/runner/models/sam2_configs"
-sam2_checkpoint = "/models/checkpoints/sam2_hiera_tiny.pt"
+config_path = "/models/models--facebook--sam2-hiera-tiny/snapshots/94606a9744abcc12096eb0065d114dd4cf93062d"
+sam2_checkpoint = "/models/models--facebook--sam2-hiera-tiny/snapshots/94606a9744abcc12096eb0065d114dd4cf93062d/sam2_hiera_tiny.pt"
 model_cfg = "sam2_hiera_t.yaml"
 
 class Sam2Wrapper:
