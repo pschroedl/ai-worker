@@ -59,6 +59,7 @@ class PipelineStreamer:
         ]
         # auxiliary tasks that are not critical to the supervisor, but which we want to run
         self.auxiliary_tasks = [
+            
         ]
         self.tasks_supervisor_task = run_in_background(
             "tasks_supervisor", self.tasks_supervisor()

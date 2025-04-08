@@ -79,6 +79,8 @@ class PipelineProcess:
         clear_queue(self.log_queue)
         self.param_update_queue.put({"request_id": request_id, "stream_id": stream_id})
 
+    # TODO: Once audio is implemented, combined send_input with input_loop
+    # We don't need additional queueing as comfystream already maintains a queue
     def send_input(self, frame: InputFrame):
         self._queue_put_fifo(self.input_queue, frame)
 
@@ -122,93 +124,118 @@ class PipelineProcess:
         # ( load_gpu_models is calling logging.info() for every frame )
         logging.getLogger("comfy").setLevel(logging.WARNING)
 
-        def report_error(error_msg: str):
-            error_event = {
-                "message": error_msg,
-                "timestamp": time.time()
-            }
-            logging.error(error_msg)
-            self._queue_put_fifo(self.error_queue, error_event)
+        try:
+            asyncio.run(self._run_pipeline_loops())
+        except Exception as e:
+            self._report_error(f"Error in process run method: {e}")
+    
 
-        def _handle_logging_params(params: dict) -> bool:
-            if isinstance(params, dict) and "request_id" in params and "stream_id" in params:
-                logging.info(f"PipelineProcess: Resetting logging fields with request_id={params['request_id']}, stream_id={params['stream_id']}")
-                self.request_id = params["request_id"]
-                self._reset_logging_fields(
-                    params["request_id"], params["stream_id"]
-                )
-                return True
-            return False
+    def _handle_logging_params(self, params: dict) -> dict:
+        if isinstance(params, dict) and "request_id" in params and "stream_id" in params:
+            logging.info(f"PipelineProcess: Resetting logging fields with request_id={params['request_id']}, stream_id={params['stream_id']}")
+            self.request_id = params["request_id"]
+            self._reset_logging_fields(
+                params["request_id"], params["stream_id"]
+            )
+            return {}
+        return params
 
+    async def _initialize_pipeline(self):
         try:
             stream_id = ""
             params = {}
             try:
                 params = self.param_update_queue.get_nowait()
-                params = {} if _handle_logging_params(params) else params
+                logging.info(f"PipelineProcess: Got params from param_update_queue {params}")
+                params = self._handle_logging_params(params)
             except queue.Empty:
                 logging.info("PipelineProcess: No params found in param_update_queue, loading with default params")
-            except Exception as e:
-                report_error(f"Error getting params: {e}")
-
-            try:
-                with log_timing(f"PipelineProcess: Pipeline loading with {params}"):
-                    pipeline = load_pipeline(self.pipeline_name, **params)
-            except Exception as e:
-                report_error(f"Error loading pipeline: {e}")
-                if not params:
-                    report_error(f"Pipeline failed to load with default params")
-                    raise
-
+            
+            with log_timing(f"PipelineProcess: Pipeline loading with {params}"):
+                pipeline = load_pipeline(self.pipeline_name)
+                await pipeline.initialize(**params)
+                return pipeline
+        except Exception as e:
+            self._report_error(f"Error loading pipeline: {e}")
+            if params:
                 try:
                     with log_timing(f"PipelineProcess: Pipeline loading with default params due to error with params: {params}"):
                         pipeline = load_pipeline(self.pipeline_name)
+                        await pipeline.initialize()
+                        return pipeline
                 except Exception as e:
-                    report_error(f"Error loading pipeline with default params: {e}")
+                    self._report_error(f"Error loading pipeline with default params: {e}")
                     raise
 
+    async def _run_pipeline_loops(self):
+        pipeline = await self._initialize_pipeline()
+        input_task = asyncio.create_task(self._input_loop(pipeline))
+        output_task = asyncio.create_task(self._output_loop(pipeline))
+        param_task = asyncio.create_task(self._param_update_loop(pipeline))
+
+        async def wait_for_stop():
             while not self.is_done():
-                while not self.param_update_queue.empty():
-                    params = self.param_update_queue.get_nowait()
-                    try:
-                        logging.info(f"PipelineProcess: Processing parameter update from queue: {params}")
-                        if not _handle_logging_params(params):
-                            logging.info(f"PipelineProcess: Updating pipeline parameters")
-                            pipeline.update_params(**params)
-                            logging.info(f"PipelineProcess: Successfully applied params to pipeline: {params}")
-                    except Exception as e:
-                        error_msg = f"Error updating params: {str(e)}"
-                        logging.error(error_msg, exc_info=True)
-                        report_error(error_msg)
+                await asyncio.sleep(0.1)
 
-                try:
-                    input_frame = self.input_queue.get(timeout=0.1)
-                except queue.Empty:
-                    continue
+        tasks = [input_task, output_task, param_task, asyncio.create_task(wait_for_stop())]
 
-                try:
-                    if isinstance(input_frame, VideoFrame):
-                        input_frame.log_timestamps["pre_process_frame"] = time.time()
-                        output_image = pipeline.process_frame(input_frame.image)
-                        input_frame.log_timestamps["post_process_frame"] = time.time()
-                        output_frame = VideoOutput(input_frame.replace_image(output_image), self.request_id)
-                        self.output_queue.put(output_frame)
-                    elif isinstance(input_frame, AudioFrame):
-                        self.output_queue.put(AudioOutput([input_frame], self.request_id))
-                        # TODO wire in a proper pipeline here
-                    else:
-                        report_error(f"Unsupported input frame type {type(input_frame)}")
-                except Exception as e:
-                    report_error(f"Error processing frame: {e}")
+        try:
+            await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         except Exception as e:
-            report_error(f"Error in process run method: {e}")
+            self._report_error(f"Error in pipeline loops: {e}")
         finally:
-            self._cleanup_pipeline(pipeline)
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await self._cleanup_pipeline(pipeline)
 
-    def _cleanup_pipeline(self, pipeline):
+    async def _input_loop(self, pipeline):
+        while not self.is_done():
+            try:
+                input_frame = await asyncio.to_thread(self.input_queue.get)
+                if isinstance(input_frame, VideoFrame):
+                    input_frame.log_timestamps["pre_process_frame"] = time.time()
+                    await pipeline.put_video_frame(input_frame)
+                elif isinstance(input_frame, AudioFrame):
+                    await asyncio.to_thread(self.output_queue.put, AudioOutput([input_frame], self.request_id))
+            except queue.Empty:
+                continue
+            except Exception as e:
+                self._report_error(f"Error processing input frame: {e}")
+
+    async def _output_loop(self, pipeline):
+        while not self.is_done():
+            try:
+                output_frame = await pipeline.get_processed_video_frame(self.request_id)
+                output_frame.log_timestamps["post_process_frame"] = time.time()
+                await asyncio.to_thread(self.output_queue.put, output_frame)
+            except Exception as e:
+                self._report_error(f"Error processing output frame: {e}")
+
+    async def _param_update_loop(self, pipeline):
+        while not self.is_done():
+            try:
+                params = await asyncio.to_thread(self.param_update_queue.get)
+                if self._handle_logging_params(params):
+                    logging.info(f"PipelineProcess: Updating pipeline parameters: {params}")
+                    await pipeline.update_params(**params)
+            except queue.Empty:
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                self._report_error(f"Error updating params: {e}")
+
+    def _report_error(self, error_msg: str):
+        error_event = {
+            "message": error_msg,
+            "timestamp": time.time()
+        }
+        logging.error(error_msg)
+        self._queue_put_fifo(self.error_queue, error_event)
+
+    async def _cleanup_pipeline(self, pipeline):
         if pipeline is not None:
             try:
-                asyncio.get_event_loop().run_until_complete(pipeline.stop())
+                await pipeline.stop()
             except Exception as e:
                 logging.error(f"Error stopping pipeline: {e}")
 
