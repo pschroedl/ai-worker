@@ -3,7 +3,7 @@ openapi: 3.1.0
 info:
   title: Livepeer AI Runner
   description: An application to run AI pipelines
-  version: 0.0.0
+  version: 0.1.0
 servers:
 - url: https://dream-gateway.livepeer.cloud
   description: Livepeer Cloud Community Gateway
@@ -542,6 +542,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HardwareStats'
+  /version:
+    get:
+      summary: Version
+      operationId: version
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Version'
 components:
   schemas:
     APIError:
@@ -1384,6 +1395,24 @@ components:
       - msg
       - type
       title: ValidationError
+    Version:
+      properties:
+        pipeline:
+          type: string
+          title: Pipeline
+        model_id:
+          type: string
+          title: Model Id
+        version:
+          type: string
+          title: Version
+          description: The version of the Runner
+      type: object
+      required:
+      - pipeline
+      - model_id
+      - version
+      title: Version
     VideoResponse:
       properties:
         frames:
