@@ -54,7 +54,6 @@ jobs:
       - name: Build and push live-base image
         id: build-base
         uses: docker/build-push-action@v6
-        if: steps.check_build.outputs.should_build == 'true'
         with:
           context: "{{defaultContext}}:runner"
           file: docker/Dockerfile.live-base-comfyui
@@ -113,7 +112,7 @@ jobs:
           push: true
           file: docker/Dockerfile.live-app__PIPELINE__
           build-args: |
-            BASE_IMAGE=livepeer/ai-runner@${{ needs.build-base.outputs.image-digest }}
+            BASE_IMAGE=livepeer/ai-runner@${{ needs.base.outputs.image-digest }}
             PIPELINE=comfyui
             GIT_SHA=${{ (github.ref_type == 'tag' && github.ref_name) || (github.event.pull_request.head.sha || github.sha) }}
             VERSION=${{ steps.version.outputs.version }}
