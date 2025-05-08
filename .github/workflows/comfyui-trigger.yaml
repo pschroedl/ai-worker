@@ -33,12 +33,14 @@ jobs:
         shell: bash
         run: |
           BASE_IMAGE="livepeer/comfyui-base@${{ inputs.comfyui-base-digest }}"
-          sed -i "1s/.*/ARG BASE_IMAGE=$BASE_IMAGE/" runner/docker/Dockerfile.live-base-comfyui
+          sed -i "1s~.*~ARG BASE_IMAGE=$BASE_IMAGE~" runner/docker/Dockerfile.live-base-comfyui
           head runner/docker/Dockerfile.live-base-comfyui
 
       - name: Commit and push changes
         id: branch-commit
         uses: devops-infra/action-commit-push@v0.10.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN  }}
         with:
           github_token: ${{ secrets.CI_GITHUB_TOKEN }}
           target_branch: "${{ inputs.branch-prefix }}${{ inputs.triggering-branch }}"
