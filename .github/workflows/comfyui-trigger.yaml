@@ -54,7 +54,7 @@ jobs:
           github_token: ${{ secrets.CI_GITHUB_TOKEN }}
           source_branch: ${{ steps.branch-commit.outputs.branch_name }}
           target_branch: main
-          title: "[BOT] Update BASE_IMAGE to trigger ai-runner rebuild for comfyui"
+          title: "[BOT] Update BASE_IMAGE to trigger ai-runner rebuild for comfyui (${{ inputs.triggering-branch }})"
           assignee: "${{ github.actor }}"
           get_diff: true
           allow_no_diff: false
