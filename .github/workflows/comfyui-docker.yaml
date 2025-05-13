@@ -40,7 +40,7 @@ jobs:
         with:
           images: livepeer/ai-runner
           tags: |
-            type=raw,value=live-app-${{ matrix.pipeline }},enable={{is_default_branch}},prefix=live-base-comfyui-
+            type=raw,value=live-base-comfyui,enable={{is_default_branch}}
             type=sha,prefix=live-base-comfyui-sha-
             type=sha,format=long,prefix=live-base-comfyui-sha-
             type=ref,event=pr,prefix=live-base-comfyui-pr-
@@ -90,7 +90,7 @@ jobs:
         with:
           images: livepeer/ai-runner
           tags: |
-            type=raw,value=live-app-comfyui,enable={{is_default_branch}},prefix=live-app-comfyui-
+            type=raw,value=live-app-comfyui,enable={{is_default_branch}}
             type=sha,prefix=live-app-comfyui-sha-
             type=sha,format=long,prefix=live-app-comfyui-sha-
             type=ref,event=pr,prefix=live-app-comfyui-pr-
