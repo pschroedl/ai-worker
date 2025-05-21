@@ -3,11 +3,12 @@ import logging
 import time
 from typing import Optional
 import abc
-from trickle import InputFrame, OutputFrame
 
+from trickle import InputFrame, OutputFrame
 from .process import PipelineProcess
 from .status import PipelineState, PipelineStatus, InferenceStatus, InputStatus
 
+FPS_LOG_INTERVAL = 10.0
 
 class StreamerCallbacks(abc.ABC):
     """
@@ -51,6 +52,9 @@ class ProcessGuardian:
             params, False
         )
 
+        self.input_fps_counter = FPSCounter()
+        self.output_fps_counter = FPSCounter()
+
     async def start(self):
         self.process = PipelineProcess.start(self.pipeline, self.initial_params)
         self.status.update_state(PipelineState.LOADING)
@@ -79,7 +83,10 @@ class ProcessGuardian:
             raise RuntimeError("Process not running")
         self.status.start_time = time.time()
         self.status.input_status = InputStatus()
+        self.input_fps_counter.reset()
+        self.output_fps_counter.reset()
         self.streamer = streamer or _NoopStreamerCallbacks()
+
         self.process.reset_stream(request_id, stream_id)
         await self.update_params(params)
         self.status.update_state(PipelineState.ONLINE)
@@ -87,15 +94,9 @@ class ProcessGuardian:
     def send_input(self, frame: InputFrame):
         if not self.process:
             raise RuntimeError("Process not running")
-        iss = self.status.input_status
-        if not iss.last_input_time:
-            iss.last_input_time = time.time()
-            # can't calculate fps from the first frame
-        else:
-            previous_input_time = max(iss.last_input_time, self.status.start_time)
-            (iss.last_input_time, iss.fps) = calculate_rolling_fps(
-                iss.fps, previous_input_time
-            )
+
+        self.status.input_status.last_input_time = time.time()
+        self.input_fps_counter.inc()
 
         self.process.send_input(frame)
 
@@ -104,15 +105,8 @@ class ProcessGuardian:
             raise RuntimeError("Process not running")
         output = await self.process.recv_output()
 
-        oss = self.status.inference_status
-        if not oss.last_output_time:
-            oss.last_output_time = time.time()
-            # can't calculate fps from the first frame
-        else:
-            previous_output_time = max(oss.last_output_time, self.status.start_time)
-            (oss.last_output_time, oss.fps) = calculate_rolling_fps(
-                oss.fps, previous_output_time
-            )
+        self.status.inference_status.last_output_time = time.time()
+        self.output_fps_counter.inc()
 
         return output
 
@@ -256,6 +250,7 @@ class ProcessGuardian:
         )
 
     async def _monitor_loop(self):
+        last_fps_compute = time.time()
         while True:
             try:
                 await asyncio.sleep(1)
@@ -275,6 +270,20 @@ class ProcessGuardian:
                             "time": error_time,
                         }
                     )
+
+                now = time.time()
+                if now - last_fps_compute > FPS_LOG_INTERVAL:
+                    input_fps = self.input_fps_counter.fps(now)
+                    output_fps = self.output_fps_counter.fps(now)
+
+                    self.status.input_status.fps, self.status.inference_status.fps = input_fps, output_fps
+                    last_fps_compute = now
+
+                    if self.streamer.is_stream_running():
+                        if input_fps > 0:
+                            logging.info(f"Input FPS: {input_fps:.2f}")
+                        if output_fps > 0:
+                            logging.info(f"Output FPS: {output_fps:.2f}")
 
                 state = self._compute_current_state()
                 if state == self.status.state:
@@ -313,19 +322,36 @@ class ProcessGuardian:
                 logging.exception("Error in monitor loop", stack_info=True)
                 continue
 
+class FPSCounter:
+    def __init__(self):
+        self.reset()
 
-fps_ema_alpha = 0.0645  # 2 + (30 + 1); to give the most weight to the past 30 frames
+    def reset(self):
+        """
+        Reset the counter to initial state. Should only be called in between streams.
+        """
+        self.frame_count = 0
+        self.start_time = None
 
+    def inc(self):
+        if not self.start_time:
+            # first frame of the stream only sets the measurement window start time
+            self.start_time = time.time()
+            self.frame_count = 0
+        else:
+            self.frame_count += 1
 
-def calculate_rolling_fps(previous_fps: float, previous_frame_time: float):
-    now = time.time()
-    time_since_last_frame = now - previous_frame_time
-    if time_since_last_frame <= 0:
-        return (now, previous_fps)  # Avoid division by zero or negative time
-    current_fps = 1 / time_since_last_frame
-    new_fps = fps_ema_alpha * current_fps + (1 - fps_ema_alpha) * previous_fps
-    return (now, new_fps)
+    def fps(self, now = time.time()) -> float:
+        if not self.frame_count or not self.start_time:
+            fps = 0
+        else:
+            fps = self.frame_count / (now - self.start_time)
 
+        # start next measuring window immediately, do not wait for the next frame
+        self.start_time = now
+        self.frame_count = 0
+
+        return fps
 
 class _NoopStreamerCallbacks(StreamerCallbacks):
     def is_stream_running(self) -> bool:
